@@ -450,7 +450,7 @@ static void interpolate_pilots(srslte_chest_dl_t*     q,
 {
   srslte_scs_t scs = sf->subcarrier_spacing;
   /* interpolate the symbols with references in the freq domain */
-  uint32_t nsymbols = (sf->sf_type == SRSLTE_SF_MBSFN) ? srslte_refsignal_mbsfn_nof_symbols(scs)
+  uint32_t nsymbols = (sf->sf_type == SRSLTE_SF_MBSFN) ? srslte_refsignal_mbsfn_nof_symbols(scs) + (sf->subcarrier_spacing == SRSLTE_SCS_15KHZ ? 1 : 0)
                                                        : srslte_refsignal_cs_nof_symbols(&q->csr_refs, sf, port_id);
   uint32_t fidx_offset = 0;
 

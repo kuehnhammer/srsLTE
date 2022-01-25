@@ -778,6 +778,9 @@ static void pdsch_decode_debug(srslte_pdsch_t*     q,
       }
       DEBUG("SAVED FILE %s: LLR estimates after demodulation and descrambling\n", filename);
       srslte_vec_save_file(filename, q->e[i], cfg->grant.tb[0].nof_bits * sizeof(int16_t));
+
+      //srslte_vec_fprint_s(stdout, q->e[i], cfg->grant.tb[0].nof_bits);
+
     }
   }
 }
@@ -862,7 +865,7 @@ static int srslte_pdsch_codeword_decode(srslte_pdsch_t*     q,
       *ack = true;
     } else if (ret == SRSLTE_ERROR) {
       *ack = false;
-      ret  = SRSLTE_SUCCESS;
+      ret  = SRSLTE_ERROR;
     } else if (ret == SRSLTE_ERROR_INVALID_INPUTS) {
       *ack = false;
       ret  = SRSLTE_ERROR;

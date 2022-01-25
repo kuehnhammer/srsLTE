@@ -454,7 +454,8 @@ void srslte_ra_dl_compute_nof_re(const srslte_cell_t* cell, srslte_dl_sf_cfg_t* 
   for (int i = 0; i < SRSLTE_MAX_TB; i++) {
     /* Compute number of RE for first transport block */
     if (grant->tb[i].enabled) {
-      grant->tb[i].nof_bits = grant->nof_re * srslte_mod_bits_x_symbol(grant->tb[i].mod);
+      int bbs = srslte_mod_bits_x_symbol(grant->tb[i].mod);
+      grant->tb[i].nof_bits = grant->nof_re * bbs;
     }
   }
 }

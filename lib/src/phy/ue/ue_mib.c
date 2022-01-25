@@ -159,7 +159,8 @@ int srslte_ue_mib_decode(srslte_ue_mib_t* q,
     return SRSLTE_ERROR;
   }
   /* Reset decoder if we missed a frame */
-  if (q->frame_cnt > 80) {
+  if (q->frame_cnt > 8) {
+  // [kku]if (q->frame_cnt > 80) {
     INFO("Resetting PBCH decoder after %d frames\n", q->frame_cnt);
     srslte_ue_mib_reset(q);
   }
@@ -291,8 +292,8 @@ int srslte_ue_mib_sync_decode_prb(srslte_ue_mib_sync_t* q,
     }
 
         DEBUG("SFN %d SFIDX %d \n", srslte_ue_sync_get_sfn(&q->ue_sync), srslte_ue_sync_get_sfidx(&q->ue_sync));
-    if (srslte_ue_sync_get_sfn(&q->ue_sync)%4 == 0 && srslte_ue_sync_get_sfidx(&q->ue_sync) == 0) {
-    // [kku] if (srslte_ue_sync_get_sfidx(&q->ue_sync) == 0) {
+//    if (srslte_ue_sync_get_sfn(&q->ue_sync)%4 == 0 && srslte_ue_sync_get_sfidx(&q->ue_sync) == 0) {
+    if (srslte_ue_sync_get_sfidx(&q->ue_sync) == 0) {
       if (ret == 1) {
         mib_ret = srslte_ue_mib_decode(&q->ue_mib, bch_payload, nof_tx_ports, sfn_offset);
       } else {

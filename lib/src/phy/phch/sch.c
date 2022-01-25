@@ -32,7 +32,7 @@
 #include <string.h>
 #include <strings.h>
 
-#define CALCULATE_BER
+#undef CALCULATE_BER
 
 #define SRSLTE_PDSCH_MAX_TDEC_ITERS 10
 
