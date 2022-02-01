@@ -50,7 +50,6 @@ public:
              srslte::timer_handler*     timers_);
   ~rlc_um_lte();
   bool configure(const rlc_config_t& cnfg);
-
 private:
   // Transmitter sub-class for LTE
   class rlc_um_lte_tx : public rlc_um_base_tx
@@ -65,6 +64,7 @@ private:
 
   private:
     void reset();
+
 
     /****************************************************************************
      * State variables and counters
@@ -91,7 +91,6 @@ private:
 
     // Timeout callback interface
     void timer_expired(uint32_t timeout_id);
-
   private:
     void reset();
 
@@ -115,6 +114,7 @@ private:
 
     // helper functions
     void debug_state();
+
   };
 };
 

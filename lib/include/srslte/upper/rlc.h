@@ -65,7 +65,7 @@ public:
   // MAC interface
   bool     has_data_locked(const uint32_t lcid);
   uint32_t get_buffer_state(const uint32_t lcid);
-  uint32_t get_total_mch_buffer_state(uint32_t lcid);
+  uint32_t get_total_mch_buffer_state(uint32_t lcid, uint32_t mch_idx = 0);
   int      read_pdu(uint32_t lcid, uint8_t* payload, uint32_t nof_bytes);
   int      read_pdu_mch(uint32_t lcid, uint8_t* payload, uint32_t nof_bytes);
   int      get_increment_sequence_num();
@@ -73,8 +73,8 @@ public:
   void     write_pdu_bcch_bch(srslte::unique_byte_buffer_t pdu);
   void     write_pdu_bcch_dlsch(uint8_t* payload, uint32_t nof_bytes);
   void     write_pdu_pcch(srslte::unique_byte_buffer_t pdu);
-  void     write_pdu_mch(uint32_t lcid, uint8_t* payload, uint32_t nof_bytes);
-  void     stop_mch(uint32_t lcid);
+  void     write_pdu_mch(uint32_t mch_idx, uint32_t lcid, uint8_t* payload, uint32_t nof_bytes);
+  void     stop_mch(uint32_t mch_idx, uint32_t lcid);
 
   // RRC interface
   bool is_suspended(const uint32_t lcid);
@@ -84,14 +84,14 @@ public:
   void reset();
   void empty_queue();
   void add_bearer(uint32_t lcid, const rlc_config_t& cnfg);
-  void add_bearer_mrb(uint32_t lcid);
+  void add_bearer_mrb(uint32_t mch_idx, uint32_t lcid);
   void del_bearer(uint32_t lcid);
-  void del_bearer_mrb(uint32_t lcid);
+  void del_bearer_mrb(uint32_t mch_idx, uint32_t lcid);
   void suspend_bearer(uint32_t lcid);
   void resume_bearer(uint32_t lcid);
   void change_lcid(uint32_t old_lcid, uint32_t new_lcid);
   bool has_bearer(uint32_t lcid);
-  bool has_bearer_mrb(uint32_t lcid);
+  bool has_bearer_mrb(uint32_t mch_idx, uint32_t lcid);
 
 private:
   void reset_metrics();
@@ -103,9 +103,11 @@ private:
   srslte::timer_handler*     timers = nullptr;
 
   typedef std::map<uint16_t, rlc_common*>  rlc_map_t;
+  typedef std::map<uint16_t, rlc_map_t>    rlc_mch_map_t;
   typedef std::pair<uint16_t, rlc_common*> rlc_map_pair_t;
 
-  rlc_map_t        rlc_array, rlc_array_mrb;
+  rlc_map_t        rlc_array;
+  rlc_mch_map_t    rlc_array_mrb;
   pthread_rwlock_t rwlock;
 
   uint32_t default_lcid = 0;
@@ -116,7 +118,7 @@ private:
   struct timeval metrics_time[3] = {};
 
   bool valid_lcid(uint32_t lcid);
-  bool valid_lcid_mrb(uint32_t lcid);
+  bool valid_lcid_mrb(uint32_t mch_idx, uint32_t lcid);
 
   void update_bsr(uint32_t lcid);
   void update_bsr_mch(uint32_t lcid);

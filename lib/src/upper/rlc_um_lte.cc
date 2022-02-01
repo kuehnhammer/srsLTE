@@ -299,7 +299,7 @@ void rlc_um_lte::rlc_um_lte_rx::handle_data_pdu(uint8_t* payload, uint32_t nof_b
 
   rlc_umd_pdu_header_t header;
   rlc_um_read_data_pdu_header(payload, nof_bytes, cfg.um.rx_sn_field_length, &header);
-  log->info_hex(payload, nof_bytes, "RX %s Rx data PDU SN=%d (%d B)", rb_name.c_str(), header.sn, nof_bytes);
+  log->info_hex(payload, nof_bytes, "RX %s Rx data PDU SN=%d (%d B) for lcid %d in MCH %d", rb_name.c_str(), header.sn, nof_bytes, lcid, cfg.mch_idx);
 
   if (RX_MOD_BASE(header.sn) >= RX_MOD_BASE(vr_uh - cfg.um.rx_window_size) &&
       RX_MOD_BASE(header.sn) < RX_MOD_BASE(vr_ur)) {
@@ -417,7 +417,7 @@ void rlc_um_lte::rlc_um_lte_rx::reassemble_rx_sdus()
           metrics.num_rx_sdus++;
           metrics.num_rx_sdu_bytes += rx_sdu->N_bytes;
           if (cfg.um.is_mrb) {
-            pdcp->write_pdu_mch(lcid, std::move(rx_sdu));
+            pdcp->write_pdu_mch(cfg.mch_idx, lcid, std::move(rx_sdu));
           } else {
             pdcp->write_pdu(lcid, std::move(rx_sdu));
           }
@@ -452,7 +452,7 @@ void rlc_um_lte::rlc_um_lte_rx::reassemble_rx_sdus()
             metrics.num_rx_sdus++;
             metrics.num_rx_sdu_bytes += rx_sdu->N_bytes;
             if (cfg.um.is_mrb) {
-              pdcp->write_pdu_mch(lcid, std::move(rx_sdu));
+              pdcp->write_pdu_mch(cfg.mch_idx, lcid, std::move(rx_sdu));
             } else {
               pdcp->write_pdu(lcid, std::move(rx_sdu));
             }
@@ -563,7 +563,7 @@ void rlc_um_lte::rlc_um_lte_rx::reassemble_rx_sdus()
         metrics.num_rx_sdus++;
         metrics.num_rx_sdu_bytes += rx_sdu->N_bytes;
         if (cfg.um.is_mrb) {
-          pdcp->write_pdu_mch(lcid, std::move(rx_sdu));
+          pdcp->write_pdu_mch(cfg.mch_idx, lcid, std::move(rx_sdu));
         } else {
           pdcp->write_pdu(lcid, std::move(rx_sdu));
         }
@@ -625,7 +625,7 @@ void rlc_um_lte::rlc_um_lte_rx::reassemble_rx_sdus()
         metrics.num_rx_sdus++;
         metrics.num_rx_sdu_bytes += rx_sdu->N_bytes;
         if (cfg.um.is_mrb) {
-          pdcp->write_pdu_mch(lcid, std::move(rx_sdu));
+          pdcp->write_pdu_mch(cfg.mch_idx, lcid, std::move(rx_sdu));
         } else {
           pdcp->write_pdu(lcid, std::move(rx_sdu));
         }

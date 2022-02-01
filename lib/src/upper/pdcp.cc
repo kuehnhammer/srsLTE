@@ -274,12 +274,12 @@ void pdcp::write_pdu_pcch(unique_byte_buffer_t sdu)
   rrc->write_pdu_pcch(std::move(sdu));
 }
 
-void pdcp::write_pdu_mch(uint32_t lcid, unique_byte_buffer_t sdu)
+void pdcp::write_pdu_mch(uint32_t mch_idx, uint32_t lcid, unique_byte_buffer_t sdu)
 {
   if (0 == lcid) {
     rrc->write_pdu_mch(lcid, std::move(sdu));
   } else {
-    gw->write_pdu_mch(lcid, std::move(sdu));
+    gw->write_pdu_mch(mch_idx, lcid, std::move(sdu));
   }
 }
 

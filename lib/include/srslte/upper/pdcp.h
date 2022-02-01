@@ -61,7 +61,7 @@ public:
 
   // RLC interface
   void write_pdu(uint32_t lcid, unique_byte_buffer_t sdu) override;
-  void write_pdu_mch(uint32_t lcid, unique_byte_buffer_t sdu) override;
+  void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, unique_byte_buffer_t sdu) override;
   void write_pdu_bcch_bch(unique_byte_buffer_t sdu) override;
   void write_pdu_bcch_dlsch(unique_byte_buffer_t sdu) override;
   void write_pdu_pcch(unique_byte_buffer_t sdu) override;

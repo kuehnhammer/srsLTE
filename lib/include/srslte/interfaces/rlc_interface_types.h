@@ -142,6 +142,7 @@ public:
   rlc_um_config_t    um;
   rlc_um_nr_config_t um_nr;
   uint32_t           tx_queue_length;
+  uint32_t           mch_idx = 0;
 
   rlc_config_t() :
     rat(srslte_rat_t::lte),

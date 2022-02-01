@@ -118,7 +118,7 @@ class gw_interface_pdcp
 {
 public:
   virtual void write_pdu(uint32_t lcid, srslte::unique_byte_buffer_t pdu)     = 0;
-  virtual void write_pdu_mch(uint32_t lcid, srslte::unique_byte_buffer_t pdu) = 0;
+  virtual void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, srslte::unique_byte_buffer_t pdu) = 0;
 };
 
 // RRC interface for MAC
@@ -270,7 +270,7 @@ public:
   virtual void write_pdu_bcch_bch(srslte::unique_byte_buffer_t sdu)           = 0;
   virtual void write_pdu_bcch_dlsch(srslte::unique_byte_buffer_t sdu)         = 0;
   virtual void write_pdu_pcch(srslte::unique_byte_buffer_t sdu)               = 0;
-  virtual void write_pdu_mch(uint32_t lcid, srslte::unique_byte_buffer_t sdu) = 0;
+  virtual void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, srslte::unique_byte_buffer_t sdu) = 0;
 };
 
 class pdcp_interface_gw
@@ -288,7 +288,7 @@ public:
   virtual void reestablish()                                               = 0;
   virtual void reestablish(uint32_t lcid)                                  = 0;
   virtual void add_bearer(uint32_t lcid, const srslte::rlc_config_t& cnfg) = 0;
-  virtual void add_bearer_mrb(uint32_t lcid)                               = 0;
+  virtual void add_bearer_mrb(uint32_t mch_idx, uint32_t lcid)             = 0;
   virtual void del_bearer(uint32_t lcid)                                   = 0;
   virtual void suspend_bearer(uint32_t lcid)                               = 0;
   virtual void resume_bearer(uint32_t lcid)                                = 0;
@@ -340,7 +340,7 @@ public:
   virtual void write_pdu_bcch_bch(srslte::unique_byte_buffer_t payload)           = 0;
   virtual void write_pdu_bcch_dlsch(uint8_t* payload, uint32_t nof_bytes)         = 0;
   virtual void write_pdu_pcch(srslte::unique_byte_buffer_t payload)               = 0;
-  virtual void write_pdu_mch(uint32_t lcid, uint8_t* payload, uint32_t nof_bytes) = 0;
+  virtual void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, uint8_t* payload, uint32_t nof_bytes) = 0;
 };
 
 /** MAC interface
