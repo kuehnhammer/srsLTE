@@ -49,6 +49,13 @@ uint32_t ra_re_x_prb(const srsran_cell_t* cell, srsran_dl_sf_cfg_t* sf, uint32_t
   srsran_cp_t cp_       = cell->cp;
   if (SRSRAN_SF_MBSFN == sf->sf_type) {
     cp_ = SRSRAN_CP_EXT;
+    if (sf->subcarrier_spacing != SRSRAN_SCS_15KHZ) {
+      re = SRSRAN_NRE_SCS(sf->subcarrier_spacing) * SRSRAN_MBSFN_NOF_SYMBOLS(sf->subcarrier_spacing);
+      if (skip_refs) {
+        re -= srsran_refsignal_mbsfn_rs_per_symbol(sf->subcarrier_spacing) * (slot+1);
+      }
+      return re;
+    }
   }
 
   uint32_t nof_symbols = SRSRAN_CP_NSYMB(cp_);
@@ -427,8 +434,16 @@ void srsran_ra_dl_compute_nof_re(const srsran_cell_t* cell, srsran_dl_sf_cfg_t* 
   grant->nof_re   = srsran_ra_dl_grant_nof_re(cell, sf, grant);
   srsran_cp_t cp_ = SRSRAN_SF_NORM == sf->sf_type ? cell->cp : SRSRAN_CP_EXT;
   if (cell->frame_type == SRSRAN_FDD) {
-    grant->nof_symb_slot[0] = SRSRAN_CP_NSYMB(cp_);
-    grant->nof_symb_slot[1] = SRSRAN_CP_NSYMB(cp_);
+   if (sf->sf_type == SRSRAN_SF_MBSFN && sf->subcarrier_spacing == SRSRAN_SCS_1KHZ25) {
+      grant->nof_symb_slot[0] = SRSRAN_CP_SCS_1KHZ25_NSYMB;
+      grant->nof_symb_slot[1] = 0;
+    } else if (sf->sf_type == SRSRAN_SF_MBSFN && sf->subcarrier_spacing == SRSRAN_SCS_7KHZ5) {
+      grant->nof_symb_slot[0] = SRSRAN_CP_SCS_7KHZ5_NSYMB;
+      grant->nof_symb_slot[1] = SRSRAN_CP_SCS_7KHZ5_NSYMB;
+    } else {
+      grant->nof_symb_slot[0] = SRSRAN_CP_NSYMB(cp_);
+      grant->nof_symb_slot[1] = SRSRAN_CP_NSYMB(cp_);
+    }
   } else {
     if (srsran_sfidx_tdd_type(sf->tdd_config, sf->tti % 10) == SRSRAN_TDD_SF_S) {
       grant->nof_symb_slot[0] = srsran_sfidx_tdd_nof_dw_slot(sf->tdd_config, 0, cp_);
@@ -670,7 +685,8 @@ uint32_t srsran_ra_dl_grant_nof_re(const srsran_cell_t* cell, srsran_dl_sf_cfg_t
   uint32_t j, s;
   // Compute number of RE per PRB
   uint32_t nof_re = 0;
-  for (s = 0; s < 2; s++) {
+  uint32_t nof_slots = (sf->sf_type == SRSRAN_SF_MBSFN ? SRSRAN_MBSFN_NOF_SLOTS(sf->subcarrier_spacing) : 2);
+  for (s = 0; s < nof_slots; s++) {
     for (j = 0; j < cell->nof_prb; j++) {
       if (grant->prb_idx[s][j]) {
         nof_re += ra_re_x_prb(cell, sf, s, j);

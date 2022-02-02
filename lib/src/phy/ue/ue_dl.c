@@ -104,6 +104,7 @@ int srsran_ue_dl_init(srsran_ue_dl_t* q, cf_t* in_buffer[SRSRAN_MAX_PORTS], uint
     ofdm_cfg.in_buffer  = in_buffer[0];
     ofdm_cfg.out_buffer = q->sf_symbols[0];
     ofdm_cfg.sf_type    = SRSRAN_SF_MBSFN;
+    ofdm_cfg.symbol_sz  = srsran_symbol_sz_scs(max_prb, SRSRAN_SCS_1KHZ25); // init for largest possible size
     if (srsran_ofdm_rx_init_cfg(&q->fft_mbsfn, &ofdm_cfg)) {
       ERROR("Error initiating FFT for MBSFN subframes ");
       goto clean_exit;
@@ -187,7 +188,7 @@ int srsran_ue_dl_set_cell(srsran_ue_dl_t* q, srsran_cell_t cell)
   if (q != NULL && srsran_cell_isvalid(&cell)) {
     q->pending_ul_dci_count = 0;
 
-    if (q->cell.id != cell.id || q->cell.nof_prb == 0) {
+    if (q->cell.id != cell.id || q->cell.nof_prb == 0 || q->cell.mbsfn_prb != cell.mbsfn_prb) {
       if (q->cell.nof_prb != 0) {
         for (int i = 0; i < SRSRAN_MI_NOF_REGS; i++) {
           srsran_regs_free(&q->regs[i]);
@@ -195,15 +196,24 @@ int srsran_ue_dl_set_cell(srsran_ue_dl_t* q, srsran_cell_t cell)
       }
       q->cell = cell;
       for (int i = 0; i < SRSRAN_MI_NOF_REGS; i++) {
-        if (srsran_regs_init_opts(&q->regs[i], q->cell, mi_reg_idx[i % 3], i > 2)) {
+        if (srsran_regs_init_opts(&q->regs[i], q->cell, q->cell.mbms_dedicated ? 0 : mi_reg_idx[i % 3], i > 2)) {
           ERROR("Error resizing REGs");
           return SRSRAN_ERROR;
         }
       }
       for (int port = 0; port < q->nof_rx_antennas; port++) {
-        if (srsran_ofdm_rx_set_prb(&q->fft[port], q->cell.cp, q->cell.nof_prb)) {
-          ERROR("Error resizing FFT");
-          return SRSRAN_ERROR;
+        if (q->cell.mbsfn_prb != 0 && q->cell.mbsfn_prb != q->cell.nof_prb) {
+          if (srsran_ofdm_rx_set_prb_symbol_sz(&q->fft[port], q->cell.cp, q->cell.nof_prb,
+                srsran_symbol_sz(q->cell.mbsfn_prb))) {
+            ERROR("Error resizing FFT\n");
+            return SRSRAN_ERROR;
+          }
+
+        } else {
+          if (srsran_ofdm_rx_set_prb(&q->fft[port], q->cell.cp, q->cell.nof_prb)) {
+            ERROR("Error resizing FFT\n");
+            return SRSRAN_ERROR;
+          }
         }
       }
 
@@ -215,7 +225,7 @@ int srsran_ue_dl_set_cell(srsran_ue_dl_t* q, srsran_cell_t cell)
         phich_init_reg = 2; // mi=2
       }
 
-      if (srsran_ofdm_rx_set_prb(&q->fft_mbsfn, SRSRAN_CP_EXT, q->cell.nof_prb)) {
+      if (srsran_ofdm_rx_set_prb(&q->fft_mbsfn, SRSRAN_CP_EXT, q->cell.mbsfn_prb)) {
         ERROR("Error resizing MBSFN FFT");
         return SRSRAN_ERROR;
       }
@@ -228,9 +238,11 @@ int srsran_ue_dl_set_cell(srsran_ue_dl_t* q, srsran_cell_t cell)
         ERROR("Error resizing PCFICH object");
         return SRSRAN_ERROR;
       }
-      if (srsran_phich_set_cell(&q->phich, &q->regs[phich_init_reg], q->cell)) {
-        ERROR("Error resizing PHICH object");
-        return SRSRAN_ERROR;
+      if (!q->cell.mbms_dedicated) {
+        if (srsran_phich_set_cell(&q->phich, &q->regs[phich_init_reg], q->cell)) {
+          ERROR("Error resizing PHICH object\n");
+          return SRSRAN_ERROR;
+        }
       }
 
       if (srsran_pdcch_set_cell(&q->pdcch, &q->regs[pdcch_init_reg], q->cell)) {
@@ -279,7 +291,7 @@ int srsran_ue_dl_set_mbsfn_area_id(srsran_ue_dl_t* q, uint16_t mbsfn_area_id)
   int ret = SRSRAN_ERROR_INVALID_INPUTS;
   if (q != NULL) {
     ret = SRSRAN_ERROR;
-    if (srsran_chest_dl_set_mbsfn_area_id(&q->chest, mbsfn_area_id)) {
+    if (srsran_chest_dl_set_mbsfn_area_id(&q->chest, mbsfn_area_id, q->subcarrier_spacing)) {
       ERROR("Error setting MBSFN area ID ");
       return ret;
     }
@@ -293,13 +305,30 @@ int srsran_ue_dl_set_mbsfn_area_id(srsran_ue_dl_t* q, uint16_t mbsfn_area_id)
   return ret;
 }
 
+int srsran_ue_dl_set_mbsfn_subcarrier_spacing(srsran_ue_dl_t* q, srsran_scs_t subcarrier_spacing)
+{
+  int ret = SRSRAN_ERROR_INVALID_INPUTS;
+  if (q != NULL) {
+    ret = SRSRAN_ERROR;
+    if (srsran_ofdm_rx_set_prb_scs(&q->fft_mbsfn, SRSRAN_CP_EXT, q->cell.mbsfn_prb, subcarrier_spacing)) {
+      ERROR("Error setting MBSFN subcarrier spacing\n");
+      return ret;
+    }
+    q->subcarrier_spacing = subcarrier_spacing;
+    ret                      = SRSRAN_SUCCESS;
+  }
+  return ret;
+}
+
 static void set_mi_value(srsran_ue_dl_t* q, srsran_dl_sf_cfg_t* sf, srsran_ue_dl_cfg_t* cfg)
 {
   uint32_t sf_idx = sf->tti % 10;
   // Set mi value in pdcch region
   if (q->mi_auto) {
-    INFO("Setting PHICH mi value auto. sf_idx=%d, mi=%d, idx=%d", sf_idx, MI_VALUE(sf_idx), MI_IDX(sf_idx));
-    srsran_phich_set_regs(&q->phich, &q->regs[MI_IDX(sf_idx)]);
+    if (!q->cell.mbms_dedicated) { // no PHICH for MBMS dedicated cells
+      INFO("Setting PHICH mi value auto. sf_idx=%d, mi=%d, idx=%d\n", sf_idx, MI_VALUE(sf_idx), MI_IDX(sf_idx));
+      srsran_phich_set_regs(&q->phich, &q->regs[MI_IDX(sf_idx)]);
+    }
     srsran_pdcch_set_regs(&q->pdcch, &q->regs[MI_IDX(sf_idx)]);
   } else {
     // No subframe 1 or 6 so no need to consider it
@@ -357,7 +386,11 @@ int srsran_ue_dl_decode_fft_estimate(srsran_ue_dl_t* q, srsran_dl_sf_cfg_t* sf, 
         srsran_ofdm_rx_sf(&q->fft[j]);
       }
     }
-    return estimate_pdcch_pcfich(q, sf, cfg);
+    if (sf->sf_type == SRSRAN_SF_MBSFN && sf->subcarrier_spacing != SRSRAN_SCS_15KHZ) {
+      return srsran_chest_dl_estimate_cfg(&q->chest, sf, &cfg->chest_cfg, q->sf_symbols, &q->chest_res);
+    } else {
+      return estimate_pdcch_pcfich(q, sf, cfg);
+    }
   } else {
     return SRSRAN_ERROR_INVALID_INPUTS;
   }
@@ -667,7 +700,7 @@ int srsran_ue_dl_find_dl_dci(srsran_ue_dl_t*     q,
   q->nof_allocated_locations = 0;
 
   int nof_msg = 0;
-  if (rnti == SRSRAN_SIRNTI || rnti == SRSRAN_PRNTI || SRSRAN_RNTI_ISRAR(rnti)) {
+  if (rnti == SRSRAN_SIRNTI || rnti == SRSRAN_SIRNTI_MBMS_DEDICATED || rnti == SRSRAN_PRNTI || SRSRAN_RNTI_ISRAR(rnti)) {
     nof_msg = find_dl_dci_type_siprarnti(q, sf, dl_cfg, rnti, dci_msg);
   } else {
     nof_msg = find_dl_ul_dci_type_crnti(q, sf, dl_cfg, rnti, dci_msg);

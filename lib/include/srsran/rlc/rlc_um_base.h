@@ -157,6 +157,7 @@ protected:
     unique_byte_buffer_t rx_sdu;
 
     uint32_t& lcid;
+    std::mutex mutex;
 
     // helper functions
     virtual void debug_state() = 0;

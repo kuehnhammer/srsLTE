@@ -34,7 +34,7 @@ public:
   virtual void reestablish()                                               = 0;
   virtual void reestablish(uint32_t lcid)                                  = 0;
   virtual int  add_bearer(uint32_t lcid, const srsran::rlc_config_t& cnfg) = 0;
-  virtual int  add_bearer_mrb(uint32_t lcid)                               = 0;
+  virtual int  add_bearer_mrb(uint32_t mch_idx, uint32_t lcid)             = 0;
   virtual void del_bearer(uint32_t lcid)                                   = 0;
   virtual void suspend_bearer(uint32_t lcid)                               = 0;
   virtual void resume_bearer(uint32_t lcid)                                = 0;
@@ -86,7 +86,7 @@ public:
   virtual void write_pdu_bcch_bch(srsran::unique_byte_buffer_t payload)           = 0;
   virtual void write_pdu_bcch_dlsch(uint8_t* payload, uint32_t nof_bytes)         = 0;
   virtual void write_pdu_pcch(srsran::unique_byte_buffer_t payload)               = 0;
-  virtual void write_pdu_mch(uint32_t lcid, uint8_t* payload, uint32_t nof_bytes) = 0;
+  virtual void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, uint8_t* payload, uint32_t nof_bytes) = 0;
 };
 
 } // namespace srsue

@@ -103,6 +103,8 @@ SRSRAN_API void srsran_pbch_decode_reset(srsran_pbch_t* q);
 
 SRSRAN_API void srsran_pbch_mib_unpack(uint8_t* msg, srsran_cell_t* cell, uint32_t* sfn);
 
+SRSRAN_API void srsran_pbch_mib_mbms_unpack(uint8_t* msg, srsran_cell_t* cell, uint32_t* sfn, uint32_t* additional_non_mbsfn_subframes, int8_t override_prb);
+
 SRSRAN_API void srsran_pbch_mib_pack(srsran_cell_t* cell, uint32_t sfn, uint8_t* msg);
 
 #endif // SRSRAN_PBCH_H

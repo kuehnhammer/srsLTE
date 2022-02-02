@@ -33,7 +33,10 @@ srsran_cell_t cell = {6,              // nof_prb
                       SRSRAN_CP_NORM, // cyclic prefix
                       SRSRAN_PHICH_NORM,
                       SRSRAN_PHICH_R_1_6,
-                      SRSRAN_FDD};
+                      SRSRAN_FDD,
+                      false,
+                      0,
+                      0};
 
 char* output_matlab = NULL;
 

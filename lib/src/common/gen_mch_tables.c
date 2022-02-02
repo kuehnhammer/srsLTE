@@ -53,3 +53,10 @@ void generate_mcch_table(uint8_t* table, uint32_t sf_alloc)
   uint8_t alloc = (sf_alloc)&0x3F;
   generate_frame_table(table, alloc);
 }
+
+void generate_mcch_table_r16(uint8_t* table, uint32_t alloc)
+{
+  for (uint32_t j = 0; j < 9; j++) {
+    table[10-j] = (alloc >> j) & 0x01;
+  }
+}

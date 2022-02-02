@@ -88,6 +88,23 @@ srsran_ue_cellsearch_init_multi(srsran_ue_cellsearch_t* q,
                                 uint32_t nof_rx_antennas,
                                 void*    stream_handler);
 
+SRSRAN_API int
+srsran_ue_cellsearch_init_multi_prb(srsran_ue_cellsearch_t* q,
+                                uint32_t max_frames_total,
+                                int(recv_callback)(void*, cf_t* [SRSRAN_MAX_CHANNELS], uint32_t, srsran_timestamp_t*),
+                                uint32_t nof_rx_antennas,
+                                void *stream_handler,
+                                uint8_t nof_prb);
+
+SRSRAN_API int
+srsran_ue_cellsearch_init_multi_prb_cp(srsran_ue_cellsearch_t* q,
+                                uint32_t max_frames_total,
+                                int(recv_callback)(void*, cf_t* [SRSRAN_MAX_CHANNELS], uint32_t, srsran_timestamp_t*),
+                                uint32_t nof_rx_antennas,
+                                void *stream_handler,
+                                uint8_t nof_prb,
+                                bool search_extended_cp);
+
 SRSRAN_API void srsran_ue_cellsearch_free(srsran_ue_cellsearch_t* q);
 
 SRSRAN_API int

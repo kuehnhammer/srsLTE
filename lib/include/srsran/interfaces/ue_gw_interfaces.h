@@ -76,7 +76,7 @@ class gw_interface_pdcp
 {
 public:
   virtual void write_pdu(uint32_t lcid, srsran::unique_byte_buffer_t pdu)     = 0;
-  virtual void write_pdu_mch(uint32_t lcid, srsran::unique_byte_buffer_t pdu) = 0;
+  virtual void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, srsran::unique_byte_buffer_t pdu) = 0;
 };
 
 class gw_interface_stack : public gw_interface_nas, public gw_interface_rrc, public gw_interface_pdcp

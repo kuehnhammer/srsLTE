@@ -107,6 +107,8 @@ typedef struct SRSRAN_API {
 
   srsran_dci_location_t allocated_locations[SRSRAN_MAX_DCI_MSG];
   uint32_t              nof_allocated_locations;
+
+  srsran_scs_t        subcarrier_spacing;
 } srsran_ue_dl_t;
 
 // Downlink config (includes common and dedicated variables)
@@ -165,6 +167,8 @@ SRSRAN_API void srsran_ue_dl_free(srsran_ue_dl_t* q);
 SRSRAN_API int srsran_ue_dl_set_cell(srsran_ue_dl_t* q, srsran_cell_t cell);
 
 SRSRAN_API int srsran_ue_dl_set_mbsfn_area_id(srsran_ue_dl_t* q, uint16_t mbsfn_area_id);
+
+SRSRAN_API int srsran_ue_dl_set_mbsfn_subcarrier_spacing(srsran_ue_dl_t* q, srsran_scs_t subcarrier_spacing);
 
 SRSRAN_API void srsran_ue_dl_set_non_mbsfn_region(srsran_ue_dl_t* q, uint8_t non_mbsfn_region_length);
 

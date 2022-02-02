@@ -60,6 +60,7 @@ typedef struct SRSRAN_API {
   uint32_t    symbol_sz;             ///< Symbol size, forces a given symbol size for the number of PRB
   bool        keep_dc;               ///< If true, it does not remove the DC
   double      phase_compensation_hz; ///< Carrier frequency in Hz for phase compensation, set to 0 to disable
+  srsran_scs_t subcarrier_spacing;   ///< Subcarrier spacing 15, 7.5 or 1.25 kHz
 } srsran_ofdm_cfg_t;
 
 /**
@@ -80,7 +81,7 @@ typedef struct SRSRAN_API {
   bool              mbsfn_subframe;
   uint32_t          mbsfn_guard_len;
   uint32_t          nof_symbols_mbsfn;
-  uint8_t           non_mbsfn_region;
+  int8_t            non_mbsfn_region;
   uint32_t          window_offset_n;
   cf_t*             shift_buffer;
   cf_t*             window_offset_buffer;
@@ -120,6 +121,12 @@ srsran_ofdm_rx_init(srsran_ofdm_t* q, srsran_cp_t cp_type, cf_t* in_buffer, cf_t
 SRSRAN_API int srsran_ofdm_tx_set_prb(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb);
 
 SRSRAN_API int srsran_ofdm_rx_set_prb(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb);
+
+SRSRAN_API int srsran_ofdm_rx_set_prb_scs(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb, srsran_scs_t scs);
+
+SRSRAN_API int srsran_ofdm_rx_set_prb_symbol_sz(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb, uint32_t symbol_sz);
+
+SRSRAN_API int srsran_ofdm_rx_set_prb_scs_symbol_sz(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb, srsran_scs_t scs, uint32_t symbol_sz);
 
 SRSRAN_API void srsran_ofdm_rx_free(srsran_ofdm_t* q);
 

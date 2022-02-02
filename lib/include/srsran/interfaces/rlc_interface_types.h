@@ -133,6 +133,7 @@ public:
   rlc_um_config_t    um;
   rlc_um_nr_config_t um_nr;
   uint32_t           tx_queue_length;
+  uint32_t           mch_idx = 0;
 
   rlc_config_t() :
     rat(srsran_rat_t::lte), rlc_mode(rlc_mode_t::tm), am(), um(), um_nr(), tx_queue_length(RLC_TX_QUEUE_LEN){};

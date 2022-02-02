@@ -36,6 +36,7 @@ extern "C" {
 void generate_frame_mch_table(uint8_t* table, uint8_t alloc);
 void generate_mch_table(uint8_t* table, uint32_t sf_alloc, uint8_t num_frames);
 void generate_mcch_table(uint8_t* table, uint32_t sf_alloc);
+void generate_mcch_table_r16(uint8_t* table, uint32_t sf_alloc);
 
 #ifdef __cplusplus
 }

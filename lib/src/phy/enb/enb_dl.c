@@ -100,7 +100,7 @@ int srsran_enb_dl_init(srsran_enb_dl_t* q, cf_t* out_buffer[SRSRAN_MAX_PORTS], u
       goto clean_exit;
     }
 
-    if (srsran_refsignal_mbsfn_init(&q->mbsfnr_signal, max_prb)) {
+    if (srsran_refsignal_mbsfn_init(&q->mbsfnr_signal, max_prb, SRSRAN_SCS_15KHZ)) {
       ERROR("Error initializing CSR signal (%d)", ret);
       goto clean_exit;
     }
@@ -216,7 +216,7 @@ int srsran_enb_dl_set_cell(srsran_enb_dl_t* q, srsran_cell_t cell)
         return SRSRAN_ERROR;
       }
       int mbsfn_area_id = 1;
-      if (srsran_refsignal_mbsfn_set_cell(&q->mbsfnr_signal, q->cell, mbsfn_area_id)) {
+      if (srsran_refsignal_mbsfn_set_cell(&q->mbsfnr_signal, q->cell, mbsfn_area_id, SRSRAN_SCS_15KHZ)) {
         ERROR("Error initializing MBSFNR signal (%d)", ret);
         return SRSRAN_ERROR;
       }

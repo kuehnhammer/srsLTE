@@ -2776,6 +2776,139 @@ const char* mbsfn_area_info_r9_s::subcarrier_spacing_mbms_r14_opts::to_number_st
   return convert_enum_idx(options, 2, value, "mbsfn_area_info_r9_s::subcarrier_spacing_mbms_r14_e_");
 }
 
+SRSASN_CODE mbsfn_area_info_r16_s::unpack(cbit_ref& bref)
+{
+  bref.unpack(ext, 1);
+  HANDLE_CODE(bref.unpack(time_separation_r16_present, 1));
+  HANDLE_CODE(unpack_integer(mbsfn_area_id_r16, bref, (uint16_t)0u, (uint16_t)255u));
+  HANDLE_CODE(unpack_integer(notif_ind_r16, bref, (uint8_t)0u, (uint8_t)7u));
+  HANDLE_CODE(mcch_cfg_r16.mcch_repeat_period_r16.unpack(bref));
+  HANDLE_CODE(mcch_cfg_r16.mcch_mod_period_r16.unpack(bref));
+  HANDLE_CODE(unpack_integer(mcch_cfg_r16.mcch_offset_r16, bref, (uint8_t)0u, (uint8_t)10u));
+  HANDLE_CODE(mcch_cfg_r16.sf_alloc_info_r16.unpack(bref));
+  HANDLE_CODE(mcch_cfg_r16.sig_mcs_r16.unpack(bref));
+  HANDLE_CODE(subcarrier_spacing_mbms_r16.unpack(bref));
+  if (time_separation_r16_present) {
+    HANDLE_CODE(time_separation_r16.unpack(bref));
+  }
+
+  if (ext) {
+    ext_groups_unpacker_guard group_flags(1);
+    group_flags.unpack(bref);
+
+    if (group_flags[0]) {
+      varlength_field_unpack_guard varlen_scope(bref, false);
+
+      HANDLE_CODE(bref.unpack(pmch_bandwidth_v16xy_present, 1));
+      if (pmch_bandwidth_v16xy_present) {
+        HANDLE_CODE(pmch_bandwidth_v16xy.unpack(bref));
+      }
+    }
+  }
+  return SRSASN_SUCCESS;
+}
+
+void mbsfn_area_info_r16_s::to_json(json_writer& j) const
+{
+  j.start_obj();
+  j.write_int("mbsfn-AreaId-r16", mbsfn_area_id_r16);
+  j.write_int("notificationIndicator-r16", notif_ind_r16);
+  j.write_fieldname("mcch-Config-r16");
+  j.start_obj();
+  j.write_str("mcch-RepetitionPeriod-r16", mcch_cfg_r16.mcch_repeat_period_r16.to_string());
+  j.write_str("mcch-ModificationPeriod-r16", mcch_cfg_r16.mcch_mod_period_r16.to_string());
+  j.write_int("mcch-Offset-r16", mcch_cfg_r16.mcch_offset_r16);
+  j.write_str("sf-AllocInfo-r16", mcch_cfg_r16.sf_alloc_info_r16.to_string());
+  j.write_str("signallingMCS-r16", mcch_cfg_r16.sig_mcs_r16.to_string());
+  j.end_obj();
+  j.write_str("subcarrierSpacingMBMS-r16", subcarrier_spacing_mbms_r16.to_string());
+  if (ext) {
+    if (time_separation_r16_present) {
+      j.write_str("timeSeparation-r16", time_separation_r16.to_string());
+    }
+    if (pmch_bandwidth_v16xy_present) {
+      j.write_str("pmch-Bandwidth-v16xy", pmch_bandwidth_v16xy.to_string());
+    }
+  }
+  j.end_obj();
+}
+
+std::string mbsfn_area_info_r16_s::mcch_cfg_r16_s_::mcch_repeat_period_r16_opts::to_string() const
+{
+  static const char* options[] = {"rf1", "rf2", "rf4", "rf8", "rf16",
+    "rf32", "rf64", "rf128", "rf256",
+    "spare7", "spare6", "spare5", "spare4", "spare3", "spare2", "spare1"};
+  return convert_enum_idx(options, 16, value, "mbsfn_area_info_r16_s::mcch_cfg_r16_s_::mcch_repeat_period_r16_e_");
+}
+uint16_t mbsfn_area_info_r16_s::mcch_cfg_r16_s_::mcch_repeat_period_r16_opts::to_number() const
+{
+  static const uint16_t options[] = {1, 2, 4, 8, 16, 32, 64, 128, 256};
+  return map_enum_number(options, 9, value, "mbsfn_area_info_r16_s::mcch_cfg_r16_s_::mcch_repeat_period_r16_e_");
+}
+
+std::string mbsfn_area_info_r16_s::mcch_cfg_r16_s_::mcch_mod_period_r16_opts::to_string() const
+{
+  static const char* options[] = {"rf1", "rf2", "rf4", "rf8", "rf16",
+    "rf32", "rf64", "rf128", "rf256", "rf512", "rf1024",
+    "spare5", "spare4", "spare3", "spare2", "spare1"};
+  return convert_enum_idx(options, 16, value, "mbsfn_area_info_r16_s::mcch_cfg_r16_s_::mcch_mod_period_r16_e_");
+}
+uint16_t mbsfn_area_info_r16_s::mcch_cfg_r16_s_::mcch_mod_period_r16_opts::to_number() const
+{
+  static const uint16_t options[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
+  return map_enum_number(options, 11, value, "mbsfn_area_info_r16_s::mcch_cfg_r16_s_::mcch_mod_period_r16_e_");
+}
+
+std::string mbsfn_area_info_r16_s::mcch_cfg_r16_s_::sig_mcs_r16_opts::to_string() const
+{
+  static const char* options[] = {"n2", "n7", "n13", "n19"};
+  return convert_enum_idx(options, 4, value, "mbsfn_area_info_r16_s::mcch_cfg_r16_s_::sig_mcs_r16_e_");
+}
+uint8_t mbsfn_area_info_r16_s::mcch_cfg_r16_s_::sig_mcs_r16_opts::to_number() const
+{
+  static const uint8_t options[] = {2, 7, 13, 19};
+  return map_enum_number(options, 4, value, "mbsfn_area_info_r16_s::mcch_cfg_r16_s_::sig_mcs_r16_e_");
+}
+
+std::string mbsfn_area_info_r16_s::subcarrier_spacing_mbms_r16_opts::to_string() const
+{
+  static const char* options[] = {"khz7dot5", "khz2dot5", "khz1dot25", "khz0dot37", "spare4", "spare3", "spare2", "spare1"};
+  return convert_enum_idx(options, 8, value, "mbsfn_area_info_r16_s::subcarrier_spacing_mbms_r16_e_");
+}
+float mbsfn_area_info_r16_s::subcarrier_spacing_mbms_r16_opts::to_number() const
+{
+  static const float options[] = {7.5, 2.5, 1.25, 0.37};
+  return map_enum_number(options, 4, value, "mbsfn_area_info_r16_s::subcarrier_spacing_mbms_r16_e_");
+}
+std::string mbsfn_area_info_r16_s::subcarrier_spacing_mbms_r16_opts::to_number_string() const
+{
+  static const char* options[] = {"7.5", "2.5", "1.25", "0.25"};
+  return convert_enum_idx(options, 2, value, "mbsfn_area_info_r16_s::subcarrier_spacing_mbms_r16_e_");
+}
+
+std::string mbsfn_area_info_r16_s::time_separation_r16_opts::to_string() const
+{
+  static const char* options[] = {"s12", "s14"};
+  return convert_enum_idx(options, 2, value, "mbsfn_area_info_r16_s::time_separation_r16_opts");
+}
+uint8_t mbsfn_area_info_r16_s::time_separation_r16_opts::to_number() const
+{
+  static const uint8_t options[] = {12, 14};
+  return map_enum_number(options, 2, value, "mbsfn_area_info_r16_s::time_separation_r16_opts");
+}
+
+std::string mbsfn_area_info_r16_s::pmch_bandwidth_v16xy_opts::to_string() const
+{
+  static const char* options[] = {"n30", "n35", "n40", "spare1"};
+  return convert_enum_idx(options, 4, value, "mbsfn_area_info_r16_s::pmch_bandwidth_v16xy_opts");
+}
+uint8_t mbsfn_area_info_r16_s::pmch_bandwidth_v16xy_opts::to_number() const
+{
+  static const uint8_t options[] = {30, 35, 40};
+  return map_enum_number(options, 3, value, "mbsfn_area_info_r16_s::pmch_bandwidth_v16xy_opts");
+}
+
+
 // ReselectionInfoRelay-r13 ::= SEQUENCE
 SRSASN_CODE resel_info_relay_r13_s::pack(bit_ref& bref) const
 {
@@ -4553,6 +4686,14 @@ SRSASN_CODE sib_type13_r9_s::unpack(cbit_ref& bref)
         HANDLE_CODE(notif_cfg_v1430->unpack(bref));
       }
     }
+
+    if (group_flags[1]) {
+      varlength_field_unpack_guard varlen_scope(bref, false);
+      HANDLE_CODE(bref.unpack(mbsfn_area_info_list_r16_present, 1));
+      if (mbsfn_area_info_list_r16_present) {
+        HANDLE_CODE(unpack_dyn_seq_of(mbsfn_area_info_list_r16, bref, 1, 8));
+      }
+    }
   }
   return SRSASN_SUCCESS;
 }
@@ -4573,6 +4714,13 @@ void sib_type13_r9_s::to_json(json_writer& j) const
     if (notif_cfg_v1430.is_present()) {
       j.write_fieldname("notificationConfig-v1430");
       notif_cfg_v1430->to_json(j);
+    }
+    if (mbsfn_area_info_list_r16_present) {
+      j.start_array("mbsfn-AreaInfoList-r16");
+      for (const auto& e1 : mbsfn_area_info_list_r16) {
+        e1.to_json(j);
+      }
+      j.end_array();
     }
   }
   j.end_obj();

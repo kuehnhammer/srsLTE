@@ -1012,6 +1012,51 @@ mbms_notif_cfg_t make_mbms_notif_cfg(const asn1::rrc::mbms_notif_cfg_r9_s& asn1_
   ret.notif_sf_idx       = asn1_type.notif_sf_idx_r9;
   return ret;
 }
+mbsfn_area_info_t::mcch_cfg_t::repeat_period_t from_mcch_repeat_period_r9(
+    mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_repeat_period_r9_opts::options val) {
+  switch (val) {
+    case mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_repeat_period_r9_opts::rf32:
+      return mbsfn_area_info_t::mcch_cfg_t::repeat_period_t::rf32;
+    case mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_repeat_period_r9_opts::rf64:
+      return mbsfn_area_info_t::mcch_cfg_t::repeat_period_t::rf64;
+    case mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_repeat_period_r9_opts::rf128:
+      return mbsfn_area_info_t::mcch_cfg_t::repeat_period_t::rf128;
+    case mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_repeat_period_r9_opts::rf256:
+      return mbsfn_area_info_t::mcch_cfg_t::repeat_period_t::rf256;
+    case mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_repeat_period_r9_opts::nulltype:
+      return mbsfn_area_info_t::mcch_cfg_t::repeat_period_t::nulltype;
+    default:
+      return mbsfn_area_info_t::mcch_cfg_t::repeat_period_t::nulltype;
+  };
+}
+
+
+mbsfn_area_info_t::mcch_cfg_t::mod_period_t from_mcch_mod_period_r9(
+    mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_mod_period_r9_opts::options val) {
+  switch (val) {
+    case mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_mod_period_r9_opts::rf512:
+      return mbsfn_area_info_t::mcch_cfg_t::mod_period_t::rf512;
+    case mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_mod_period_r9_opts::rf1024:
+      return mbsfn_area_info_t::mcch_cfg_t::mod_period_t::rf1024;
+    case mbsfn_area_info_r9_s::mcch_cfg_r9_s_::mcch_mod_period_r9_opts::nulltype:
+      return mbsfn_area_info_t::mcch_cfg_t::mod_period_t::nulltype;
+    default:
+      return mbsfn_area_info_t::mcch_cfg_t::mod_period_t::nulltype;
+  };
+}
+
+mbsfn_area_info_t::subcarrier_spacing_t  from_subcarrier_spacing_mbms_r14_opts(
+    mbsfn_area_info_r9_s::subcarrier_spacing_mbms_r14_opts::options val) {
+  switch (val) {
+    case mbsfn_area_info_r9_s::subcarrier_spacing_mbms_r14_opts::khz7dot5:
+      return mbsfn_area_info_t::subcarrier_spacing_t::khz_7dot5;
+    case mbsfn_area_info_r9_s::subcarrier_spacing_mbms_r14_opts::khz1dot25:
+      return mbsfn_area_info_t::subcarrier_spacing_t::khz_1dot25;
+    default:
+      return mbsfn_area_info_t::subcarrier_spacing_t::nulltype;
+  };
+}
+
 
 mbsfn_area_info_t make_mbsfn_area_info(const asn1::rrc::mbsfn_area_info_r9_s& asn1_type)
 {
@@ -1019,13 +1064,36 @@ mbsfn_area_info_t make_mbsfn_area_info(const asn1::rrc::mbsfn_area_info_r9_s& as
   ret.mbsfn_area_id        = asn1_type.mbsfn_area_id_r9;
   ret.non_mbsfn_region_len = (mbsfn_area_info_t::region_len_t)asn1_type.non_mbsfn_region_len.value;
   ret.notif_ind            = asn1_type.notif_ind_r9;
-  ret.mcch_cfg.mcch_repeat_period =
-      (mbsfn_area_info_t::mcch_cfg_t::repeat_period_t)asn1_type.mcch_cfg_r9.mcch_repeat_period_r9.value;
+  ret.mcch_cfg.mcch_repeat_period = from_mcch_repeat_period_r9(asn1_type.mcch_cfg_r9.mcch_repeat_period_r9.value);
   ret.mcch_cfg.mcch_offset = asn1_type.mcch_cfg_r9.mcch_offset_r9;
-  ret.mcch_cfg.mcch_mod_period =
-      (mbsfn_area_info_t::mcch_cfg_t::mod_period_t)asn1_type.mcch_cfg_r9.mcch_mod_period_r9.value;
+  ret.mcch_cfg.mcch_mod_period = from_mcch_mod_period_r9(asn1_type.mcch_cfg_r9.mcch_mod_period_r9.value);
   ret.mcch_cfg.sf_alloc_info = asn1_type.mcch_cfg_r9.sf_alloc_info_r9.to_number();
   ret.mcch_cfg.sig_mcs       = (mbsfn_area_info_t::mcch_cfg_t::sig_mcs_t)asn1_type.mcch_cfg_r9.sig_mcs_r9.value;
+  if (asn1_type.subcarrier_spacing_mbms_r14_present) {
+    ret.subcarrier_spacing = from_subcarrier_spacing_mbms_r14_opts(asn1_type.subcarrier_spacing_mbms_r14.value);
+  } else {
+    ret.subcarrier_spacing = mbsfn_area_info_t::subcarrier_spacing_t::nulltype;
+  }
+  return ret;
+}
+
+mbsfn_area_info_t make_mbsfn_area_info(const asn1::rrc::mbsfn_area_info_r16_s& asn1_type)
+{
+  mbsfn_area_info_t ret{};
+  ret.mbsfn_area_id        = asn1_type.mbsfn_area_id_r16;
+  ret.notif_ind            = asn1_type.notif_ind_r16;
+  ret.mcch_cfg.mcch_repeat_period =
+      (mbsfn_area_info_t::mcch_cfg_t::repeat_period_t)asn1_type.mcch_cfg_r16.mcch_repeat_period_r16.value;
+  ret.mcch_cfg.mcch_offset = asn1_type.mcch_cfg_r16.mcch_offset_r16;
+  ret.mcch_cfg.mcch_mod_period =
+      (mbsfn_area_info_t::mcch_cfg_t::mod_period_t)asn1_type.mcch_cfg_r16.mcch_mod_period_r16.value;
+  ret.mcch_cfg.sf_alloc_info = asn1_type.mcch_cfg_r16.sf_alloc_info_r16.to_number();
+  ret.mcch_cfg.sf_alloc_info_is_r16 = true;
+  ret.mcch_cfg.sig_mcs       = (mbsfn_area_info_t::mcch_cfg_t::sig_mcs_t)asn1_type.mcch_cfg_r16.sig_mcs_r16.value;
+  ret.subcarrier_spacing = (mbsfn_area_info_t::subcarrier_spacing_t)asn1_type.subcarrier_spacing_mbms_r16.value;
+  if (asn1_type.pmch_bandwidth_v16xy_present) {
+    ret.pmch_bandwidth = asn1_type.pmch_bandwidth_v16xy.to_number();
+  }
   return ret;
 }
 
@@ -1088,9 +1156,16 @@ static_assert(ASN1_RRC_MAX_SESSION_PER_PMCH == pmch_info_t::max_session_per_pmch
 sib13_t make_sib13(const asn1::rrc::sib_type13_r9_s& asn1_type)
 {
   sib13_t sib13{};
-  sib13.nof_mbsfn_area_info = asn1_type.mbsfn_area_info_list_r9.size();
-  for (uint32_t i = 0; i < asn1_type.mbsfn_area_info_list_r9.size(); ++i) {
-    sib13.mbsfn_area_info_list[i] = make_mbsfn_area_info(asn1_type.mbsfn_area_info_list_r9[i]);
+  if (asn1_type.mbsfn_area_info_list_r16_present) {
+    sib13.nof_mbsfn_area_info = asn1_type.mbsfn_area_info_list_r16.size();
+    for (uint32_t i = 0; i < sib13.nof_mbsfn_area_info; i++) {
+      sib13.mbsfn_area_info_list[i] = make_mbsfn_area_info(asn1_type.mbsfn_area_info_list_r16[i]);
+    }
+  } else {
+    sib13.nof_mbsfn_area_info = asn1_type.mbsfn_area_info_list_r9.size();
+    for (uint32_t i = 0; i < asn1_type.mbsfn_area_info_list_r9.size(); i++) {
+      sib13.mbsfn_area_info_list[i] = make_mbsfn_area_info(asn1_type.mbsfn_area_info_list_r9[i]);
+    }
   }
   sib13.notif_cfg = make_mbms_notif_cfg(asn1_type.notif_cfg_r9);
   return sib13;

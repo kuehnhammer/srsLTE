@@ -27,9 +27,9 @@
 /**
  * 36.211 6.6.1
  */
-int srsran_sequence_pbch(srsran_sequence_t* seq, srsran_cp_t cp, uint32_t cell_id)
+int srsran_sequence_pbch(srsran_sequence_t* seq, srsran_cp_t cp, uint32_t cell_id, bool mbms_dedicated_cell)
 {
-  return srsran_sequence_LTE_pr(seq, SRSRAN_CP_ISNORM(cp) ? 1920 : 1728, cell_id);
+  return srsran_sequence_LTE_pr(seq, SRSRAN_CP_ISNORM(cp) ? 1920 : 1728, cell_id + (mbms_dedicated_cell ? (1<<9) : 0));
 }
 
 /**
