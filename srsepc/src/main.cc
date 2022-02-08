@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -22,17 +22,17 @@
 #include "srsepc/hdr/hss/hss.h"
 #include "srsepc/hdr/mme/mme.h"
 #include "srsepc/hdr/spgw/spgw.h"
-#include "srslte/build_info.h"
-#include "srslte/common/bcd_helpers.h"
-#include "srslte/common/common_helper.h"
-#include "srslte/common/config_file.h"
-#include "srslte/common/crash_handler.h"
-#include "srslte/common/logger_srslog_wrapper.h"
-#include "srslte/common/signal_handler.h"
-#include "srslte/srslog/srslog.h"
+#include "srsran/build_info.h"
+#include "srsran/common/bcd_helpers.h"
+#include "srsran/common/common_helper.h"
+#include "srsran/common/config_file.h"
+#include "srsran/common/crash_handler.h"
+#include "srsran/srslog/srslog.h"
+#include "srsran/srsran.h"
+#include "srsran/support/emergency_handlers.h"
+#include "srsran/support/signal_handler.h"
 #include <boost/program_options.hpp>
 #include <iostream>
-#include <signal.h>
 
 using namespace std;
 using namespace srsepc;
@@ -65,6 +65,9 @@ typedef struct {
   log_args_t  log_args;
 } all_args_t;
 
+static srslog::sink*     log_sink = nullptr;
+static std::atomic<bool> running  = {true};
+
 /**********************************************************************
  *  Program arguments processing
  ***********************************************************************/
@@ -88,6 +91,9 @@ void parse_args(all_args_t* args, int argc, char* argv[])
   string   sgi_if_addr;
   string   sgi_if_name;
   string   dns_addr;
+  string   full_net_name;
+  string   short_net_name;
+  bool     request_imeisv;
   string   hss_db_file;
   string   hss_auth_algo;
   string   log_filename;
@@ -111,10 +117,13 @@ void parse_args(all_args_t* args, int argc, char* argv[])
     ("mme.mnc",             bpo::value<string>(&mnc)->default_value("01"),                   "Mobile Network Code")
     ("mme.mme_bind_addr",   bpo::value<string>(&mme_bind_addr)->default_value("127.0.0.1"),  "IP address of MME for S1 connection")
     ("mme.dns_addr",        bpo::value<string>(&dns_addr)->default_value("8.8.8.8"),         "IP address of the DNS server for the UEs")
+    ("mme.full_net_name",   bpo::value<string>(&full_net_name)->default_value("Software Radio Systems RAN"), "Full name of the network")
+    ("mme.short_net_name",  bpo::value<string>(&short_net_name)->default_value("srsRAN"),    "Short name of the network")
     ("mme.apn",             bpo::value<string>(&mme_apn)->default_value(""),                 "Set Access Point Name (APN) for data services")
     ("mme.encryption_algo", bpo::value<string>(&encryption_algo)->default_value("EEA0"),     "Set preferred encryption algorithm for NAS layer ")
     ("mme.integrity_algo",  bpo::value<string>(&integrity_algo)->default_value("EIA1"),      "Set preferred integrity protection algorithm for NAS")
     ("mme.paging_timer",    bpo::value<uint16_t>(&paging_timer)->default_value(2),           "Set paging timer value in seconds (T3413)")
+    ("mme.request_imeisv",  bpo::value<bool>(&request_imeisv)->default_value(false),         "Enable IMEISV request in Security mode command")
     ("hss.db_file",         bpo::value<string>(&hss_db_file)->default_value("ue_db.csv"),    ".csv file that stores UE's keys")
     ("spgw.gtpu_bind_addr", bpo::value<string>(&spgw_bind_addr)->default_value("127.0.0.1"), "IP address of SP-GW for the S1-U connection")
     ("spgw.sgi_if_addr",    bpo::value<string>(&sgi_if_addr)->default_value("176.16.0.1"),   "IP address of TUN interface for the SGi connection")
@@ -220,63 +229,66 @@ void parse_args(all_args_t* args, int argc, char* argv[])
   }
 
   // Convert MCC/MNC strings
-  if (!srslte::string_to_mcc(mcc, &args->mme_args.s1ap_args.mcc)) {
+  if (!srsran::string_to_mcc(mcc, &args->mme_args.s1ap_args.mcc)) {
     cout << "Error parsing mme.mcc:" << mcc << " - must be a 3-digit string." << endl;
   }
-  if (!srslte::string_to_mnc(mnc, &args->mme_args.s1ap_args.mnc)) {
+  if (!srsran::string_to_mnc(mnc, &args->mme_args.s1ap_args.mnc)) {
     cout << "Error parsing mme.mnc:" << mnc << " - must be a 2 or 3-digit string." << endl;
   }
 
   // Convert MCC/MNC strings
-  if (!srslte::string_to_mcc(mcc, &args->hss_args.mcc)) {
+  if (!srsran::string_to_mcc(mcc, &args->hss_args.mcc)) {
     cout << "Error parsing mme.mcc:" << mcc << " - must be a 3-digit string." << endl;
   }
-  if (!srslte::string_to_mnc(mnc, &args->hss_args.mnc)) {
+  if (!srsran::string_to_mnc(mnc, &args->hss_args.mnc)) {
     cout << "Error parsing mme.mnc:" << mnc << " - must be a 2 or 3-digit string." << endl;
   }
 
   std::transform(encryption_algo.begin(), encryption_algo.end(), encryption_algo.begin(), ::tolower);
   if (encryption_algo == "eea0") {
-    args->mme_args.s1ap_args.encryption_algo = srslte::CIPHERING_ALGORITHM_ID_EEA0;
+    args->mme_args.s1ap_args.encryption_algo = srsran::CIPHERING_ALGORITHM_ID_EEA0;
   } else if (encryption_algo == "eea1") {
-    args->mme_args.s1ap_args.encryption_algo = srslte::CIPHERING_ALGORITHM_ID_128_EEA1;
+    args->mme_args.s1ap_args.encryption_algo = srsran::CIPHERING_ALGORITHM_ID_128_EEA1;
   } else if (encryption_algo == "eea2") {
-    args->mme_args.s1ap_args.encryption_algo = srslte::CIPHERING_ALGORITHM_ID_128_EEA2;
+    args->mme_args.s1ap_args.encryption_algo = srsran::CIPHERING_ALGORITHM_ID_128_EEA2;
   } else if (encryption_algo == "eea3") {
-    args->mme_args.s1ap_args.encryption_algo = srslte::CIPHERING_ALGORITHM_ID_128_EEA3;
+    args->mme_args.s1ap_args.encryption_algo = srsran::CIPHERING_ALGORITHM_ID_128_EEA3;
   } else {
-    args->mme_args.s1ap_args.encryption_algo = srslte::CIPHERING_ALGORITHM_ID_EEA0;
+    args->mme_args.s1ap_args.encryption_algo = srsran::CIPHERING_ALGORITHM_ID_EEA0;
     cout << "Error parsing mme.encryption_algo:" << encryption_algo << " - must be EEA0, EEA1, EEA2 or EEA3." << endl;
     cout << "Using default mme.encryption_algo: EEA0" << endl;
   }
 
   std::transform(integrity_algo.begin(), integrity_algo.end(), integrity_algo.begin(), ::tolower);
   if (integrity_algo == "eia0") {
-    args->mme_args.s1ap_args.integrity_algo = srslte::INTEGRITY_ALGORITHM_ID_EIA0;
+    args->mme_args.s1ap_args.integrity_algo = srsran::INTEGRITY_ALGORITHM_ID_EIA0;
     cout << "Warning parsing mme.integrity_algo:" << encryption_algo
          << " - EIA0 will not supported by UEs use EIA1 or EIA2" << endl;
   } else if (integrity_algo == "eia1") {
-    args->mme_args.s1ap_args.integrity_algo = srslte::INTEGRITY_ALGORITHM_ID_128_EIA1;
+    args->mme_args.s1ap_args.integrity_algo = srsran::INTEGRITY_ALGORITHM_ID_128_EIA1;
   } else if (integrity_algo == "eia2") {
-    args->mme_args.s1ap_args.integrity_algo = srslte::INTEGRITY_ALGORITHM_ID_128_EIA2;
+    args->mme_args.s1ap_args.integrity_algo = srsran::INTEGRITY_ALGORITHM_ID_128_EIA2;
   } else if (integrity_algo == "eia3") {
-    args->mme_args.s1ap_args.integrity_algo = srslte::INTEGRITY_ALGORITHM_ID_128_EIA3;
+    args->mme_args.s1ap_args.integrity_algo = srsran::INTEGRITY_ALGORITHM_ID_128_EIA3;
   } else {
-    args->mme_args.s1ap_args.integrity_algo = srslte::INTEGRITY_ALGORITHM_ID_128_EIA1;
+    args->mme_args.s1ap_args.integrity_algo = srsran::INTEGRITY_ALGORITHM_ID_128_EIA1;
     cout << "Error parsing mme.integrity_algo:" << encryption_algo << " - must be EIA0, EIA1, EIA2 or EIA3." << endl;
     cout << "Using default mme.integrity_algo: EIA1" << endl;
   }
 
-  args->mme_args.s1ap_args.mme_bind_addr = mme_bind_addr;
-  args->mme_args.s1ap_args.mme_name      = mme_name;
-  args->mme_args.s1ap_args.dns_addr      = dns_addr;
-  args->mme_args.s1ap_args.mme_apn       = mme_apn;
-  args->mme_args.s1ap_args.paging_timer  = paging_timer;
-  args->spgw_args.gtpu_bind_addr         = spgw_bind_addr;
-  args->spgw_args.sgi_if_addr            = sgi_if_addr;
-  args->spgw_args.sgi_if_name            = sgi_if_name;
-  args->spgw_args.max_paging_queue       = max_paging_queue;
-  args->hss_args.db_file                 = hss_db_file;
+  args->mme_args.s1ap_args.mme_bind_addr  = mme_bind_addr;
+  args->mme_args.s1ap_args.mme_name       = mme_name;
+  args->mme_args.s1ap_args.dns_addr       = dns_addr;
+  args->mme_args.s1ap_args.full_net_name  = full_net_name;
+  args->mme_args.s1ap_args.short_net_name = short_net_name;
+  args->mme_args.s1ap_args.mme_apn        = mme_apn;
+  args->mme_args.s1ap_args.paging_timer   = paging_timer;
+  args->mme_args.s1ap_args.request_imeisv = request_imeisv;
+  args->spgw_args.gtpu_bind_addr          = spgw_bind_addr;
+  args->spgw_args.sgi_if_addr             = sgi_if_addr;
+  args->spgw_args.sgi_if_name             = sgi_if_name;
+  args->spgw_args.max_paging_queue        = max_paging_queue;
+  args->hss_args.db_file                  = hss_db_file;
 
   // Apply all_level to any unset layers
   if (vm.count("log.all_level")) {
@@ -337,35 +349,17 @@ void parse_args(all_args_t* args, int argc, char* argv[])
   return;
 }
 
-srslte::LOG_LEVEL_ENUM level(std::string l)
-{
-  std::transform(l.begin(), l.end(), l.begin(), ::toupper);
-  if ("NONE" == l) {
-    return srslte::LOG_LEVEL_NONE;
-  } else if ("ERROR" == l) {
-    return srslte::LOG_LEVEL_ERROR;
-  } else if ("WARNING" == l) {
-    return srslte::LOG_LEVEL_WARNING;
-  } else if ("INFO" == l) {
-    return srslte::LOG_LEVEL_INFO;
-  } else if ("DEBUG" == l) {
-    return srslte::LOG_LEVEL_DEBUG;
-  } else {
-    return srslte::LOG_LEVEL_NONE;
-  }
-}
-
 std::string get_build_mode()
 {
-  return std::string(srslte_get_build_mode());
+  return std::string(srsran_get_build_mode());
 }
 
 std::string get_build_info()
 {
-  if (std::string(srslte_get_build_info()).find("  ") != std::string::npos) {
-    return std::string(srslte_get_version());
+  if (std::string(srsran_get_build_info()).find("  ") != std::string::npos) {
+    return std::string(srsran_get_version());
   }
-  return std::string(srslte_get_build_info());
+  return std::string(srsran_get_build_info());
 }
 
 std::string get_build_string()
@@ -375,15 +369,29 @@ std::string get_build_string()
   return ss.str();
 }
 
+static void emergency_cleanup_handler(void* data)
+{
+  srslog::flush();
+  if (log_sink) {
+    log_sink->flush();
+  }
+}
+
+static void signal_handler()
+{
+  running = false;
+}
+
 int main(int argc, char* argv[])
 {
-  srslte_register_signal_handler();
+  srsran_register_signal_handler(signal_handler);
+  add_emergency_cleanup_handler(emergency_cleanup_handler, nullptr);
 
   // print build info
   cout << endl << get_build_string() << endl;
 
   cout << endl << "---  Software Radio Systems EPC  ---" << endl << endl;
-  srslte_debug_handle_crash(argc, argv);
+  srsran_debug_handle_crash(argc, argv);
 
   all_args_t args;
   parse_args(&args, argc, argv);
@@ -392,74 +400,66 @@ int main(int argc, char* argv[])
   log_sink = (args.log_args.filename == "stdout") ? srslog::create_stdout_sink()
                                                   : srslog::create_file_sink(args.log_args.filename);
   if (!log_sink) {
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
   srslog::log_channel* chan = srslog::create_log_channel("main_channel", *log_sink);
   if (!chan) {
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
-  srslte::srslog_wrapper log_wrapper(*chan);
+  srslog::set_default_sink(*log_sink);
 
   // Start the log backend.
   srslog::init();
 
   if (args.log_args.filename != "stdout") {
-    log_wrapper.log_char("\n\n");
-    log_wrapper.log_char(get_build_string().c_str());
-    log_wrapper.log_char("\n---  Software Radio Systems EPC log ---\n\n");
+    auto& epc_logger = srslog::fetch_basic_logger("EPC", false);
+    epc_logger.info("\n\n%s\n---  Software Radio Systems EPC log ---\n\n", get_build_string().c_str());
   }
 
-  srslte::logmap::set_default_logger(&log_wrapper);
-  srslte::log_args(argc, argv, "EPC");
+  srsran::log_args(argc, argv, "EPC");
 
-  srslte::log_filter nas_log;
-  nas_log.init("NAS ", &log_wrapper);
-  nas_log.set_level(level(args.log_args.nas_level));
-  nas_log.set_hex_limit(args.log_args.nas_hex_limit);
+  srslog::basic_logger& nas_logger = srslog::fetch_basic_logger("NAS", false);
+  nas_logger.set_level(srslog::str_to_basic_level(args.log_args.nas_level));
+  nas_logger.set_hex_dump_max_size(args.log_args.nas_hex_limit);
 
-  srslte::log_filter s1ap_log;
-  s1ap_log.init("S1AP", &log_wrapper);
-  s1ap_log.set_level(level(args.log_args.s1ap_level));
-  s1ap_log.set_hex_limit(args.log_args.s1ap_hex_limit);
+  auto& s1ap_logger = srslog::fetch_basic_logger("S1AP", false);
+  s1ap_logger.set_level(srslog::str_to_basic_level(args.log_args.s1ap_level));
+  s1ap_logger.set_hex_dump_max_size(args.log_args.s1ap_hex_limit);
 
-  srslte::log_filter mme_gtpc_log;
-  mme_gtpc_log.init("MME GTPC", &log_wrapper);
-  mme_gtpc_log.set_level(level(args.log_args.mme_gtpc_level));
-  mme_gtpc_log.set_hex_limit(args.log_args.mme_gtpc_hex_limit);
+  auto& mme_gtpc_logger = srslog::fetch_basic_logger("MME GTPC", false);
+  mme_gtpc_logger.set_level(srslog::str_to_basic_level(args.log_args.mme_gtpc_level));
+  mme_gtpc_logger.set_hex_dump_max_size(args.log_args.mme_gtpc_hex_limit);
 
-  srslte::log_filter hss_log;
-  hss_log.init("HSS ", &log_wrapper);
-  hss_log.set_level(level(args.log_args.hss_level));
-  hss_log.set_hex_limit(args.log_args.hss_hex_limit);
+  auto& hss_logger = srslog::fetch_basic_logger("HSS", false);
+  hss_logger.set_level(srslog::str_to_basic_level(args.log_args.hss_level));
+  hss_logger.set_hex_dump_max_size(args.log_args.hss_hex_limit);
 
-  srslte::log_filter spgw_gtpc_log;
-  spgw_gtpc_log.init("SPGW GTPC", &log_wrapper);
-  spgw_gtpc_log.set_level(level(args.log_args.spgw_gtpc_level));
-  spgw_gtpc_log.set_hex_limit(args.log_args.spgw_gtpc_hex_limit);
+  auto& spgw_gtpc_logger = srslog::fetch_basic_logger("SPGW GTPC", false);
+  spgw_gtpc_logger.set_level(srslog::str_to_basic_level(args.log_args.spgw_gtpc_level));
+  spgw_gtpc_logger.set_hex_dump_max_size(args.log_args.spgw_gtpc_hex_limit);
 
-  srslte::log_ref gtpu_log{"GTPU"};
-  gtpu_log->set_level(level(args.log_args.mme_gtpc_level));
-  gtpu_log->set_hex_limit(args.log_args.mme_gtpc_hex_limit);
+  auto& gtpu_logger = srslog::fetch_basic_logger("GTPU", false);
+  gtpu_logger.set_level(srslog::str_to_basic_level(args.log_args.gtpu_level));
+  gtpu_logger.set_hex_dump_max_size(args.log_args.gtpu_hex_limit);
 
-  srslte::log_filter spgw_log;
-  spgw_log.init("SPGW", &log_wrapper);
-  spgw_log.set_level(level(args.log_args.spgw_level));
-  spgw_log.set_hex_limit(args.log_args.spgw_hex_limit);
+  auto& spgw_logger = srslog::fetch_basic_logger("SPGW", false);
+  spgw_logger.set_level(srslog::str_to_basic_level(args.log_args.spgw_level));
+  spgw_logger.set_hex_dump_max_size(args.log_args.spgw_hex_limit);
 
   hss* hss = hss::get_instance();
-  if (hss->init(&args.hss_args, &hss_log)) {
+  if (hss->init(&args.hss_args)) {
     cout << "Error initializing HSS" << endl;
     exit(1);
   }
 
   mme* mme = mme::get_instance();
-  if (mme->init(&args.mme_args, &nas_log, &s1ap_log, &mme_gtpc_log)) {
+  if (mme->init(&args.mme_args)) {
     cout << "Error initializing MME" << endl;
     exit(1);
   }
 
   spgw* spgw = spgw::get_instance();
-  if (spgw->init(&args.spgw_args, gtpu_log, &spgw_gtpc_log, &spgw_log, hss->get_ip_to_imsi())) {
+  if (spgw->init(&args.spgw_args, hss->get_ip_to_imsi())) {
     cout << "Error initializing SP-GW" << endl;
     exit(1);
   }

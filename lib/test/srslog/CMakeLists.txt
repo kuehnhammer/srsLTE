@@ -1,14 +1,14 @@
 #
-# Copyright 2013-2020 Software Radio Systems Limited
+# Copyright 2013-2021 Software Radio Systems Limited
 #
-# This file is part of srsLTE
+# This file is part of srsRAN
 #
-# srsLTE is free software: you can redistribute it and/or modify
+# srsRAN is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
 # published by the Free Software Foundation, either version 3 of
 # the License, or (at your option) any later version.
 #
-# srsLTE is distributed in the hope that it will be useful,
+# srsRAN is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU Affero General Public License for more details.
@@ -17,6 +17,9 @@
 # the LICENSE file in the top-level directory of this distribution
 # and at http://www.gnu.org/licenses/.
 #
+
+add_executable(srslog_frontend_latency benchmarks/frontend_latency.cpp)
+target_link_libraries(srslog_frontend_latency srslog)
 
 add_executable(srslog_test srslog_test.cpp)
 target_link_libraries(srslog_test srslog)
@@ -44,6 +47,10 @@ target_include_directories(file_sink_test PUBLIC ../../)
 target_link_libraries(file_sink_test srslog)
 add_test(file_sink_test file_sink_test)
 
+add_executable(syslog_sink_test syslog_sink_test.cpp)
+target_include_directories(syslog_sink_test PUBLIC ../../)
+target_link_libraries(syslog_sink_test srslog)
+
 add_executable(file_utils_test file_utils_test.cpp)
 target_include_directories(file_utils_test PUBLIC ../../)
 target_link_libraries(file_utils_test srslog)
@@ -54,7 +61,16 @@ add_definitions(-DENABLE_SRSLOG_EVENT_TRACE)
 target_link_libraries(tracer_test srslog)
 add_test(tracer_test tracer_test)
 
-add_executable(formatter_test formatter_test.cpp)
-target_include_directories(formatter_test PUBLIC ../../)
-target_link_libraries(formatter_test srslog)
-add_test(formatter_test formatter_test)
+add_executable(text_formatter_test text_formatter_test.cpp)
+target_include_directories(text_formatter_test PUBLIC ../../)
+target_link_libraries(text_formatter_test srslog)
+add_test(text_formatter_test text_formatter_test)
+
+add_executable(json_formatter_test json_formatter_test.cpp)
+target_include_directories(json_formatter_test PUBLIC ../../)
+target_link_libraries(json_formatter_test srslog)
+add_test(json_formatter_test json_formatter_test)
+
+add_executable(context_test context_test.cpp)
+target_link_libraries(context_test srslog)
+add_test(context_test context_test)

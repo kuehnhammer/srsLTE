@@ -1,44 +1,27 @@
-/*******************************************************************************
-
-    Copyright 2014 Ben Wojtowicz
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-*******************************************************************************
-
-    File: liblte_security.cc
-
-    Description: Contains all the implementations for the LTE security
-                 algorithm library.
-
-    Revision History
-    ----------    -------------    --------------------------------------------
-    08/03/2014    Ben Wojtowicz    Created file.
-    09/03/2014    Ben Wojtowicz    Added key generation and EIA2 and fixed MCC
-                                   and MNC packing.
-
-*******************************************************************************/
+/**
+ *
+ * \section COPYRIGHT
+ *
+ * Copyright 2014      Ben Wojtowicz
+ *           2016-2020 Software Radio Systems Limited
+ *
+ * By using this file, you agree to the terms and conditions set
+ * forth in the LICENSE file which can be found at the top level of
+ * the distribution.
+ *
+ */
 
 /*******************************************************************************
                               INCLUDES
 *******************************************************************************/
 
-#include "srslte/common/liblte_security.h"
+#include "srsran/common/liblte_security.h"
 #include "math.h"
-#include "srslte/common/liblte_ssl.h"
-#include "srslte/common/s3g.h"
-#include "srslte/common/zuc.h"
+#include "srsran/common/s3g.h"
+#include "srsran/common/ssl.h"
+#include "srsran/common/zuc.h"
+
+#include <arpa/inet.h>
 
 /*******************************************************************************
                               LOCAL FUNCTION PROTOTYPES
@@ -139,6 +122,70 @@ LIBLTE_ERROR_ENUM liblte_security_generate_k_enb(uint8* k_asme, uint32 nas_count
   return (err);
 }
 
+LIBLTE_ERROR_ENUM liblte_security_generate_res_star(uint8_t*    ck,
+                                                    uint8_t*    ik,
+                                                    const char* serving_network_name,
+                                                    uint8_t*    rand,
+                                                    uint8_t*    res,
+                                                    size_t      res_len,
+                                                    uint8_t*    res_star)
+{
+  LIBLTE_ERROR_ENUM err = LIBLTE_ERROR_INVALID_INPUTS;
+  uint8_t           key[32];
+  uint8_t*          s;
+
+  if (ck != NULL && ik != NULL && serving_network_name != NULL && rand != NULL && res != NULL && res_star != NULL) {
+    // Construct S
+    uint16_t ssn_length  = strlen(serving_network_name);
+    uint16_t rand_length = 16;
+    uint32_t s_len       = 1 + ssn_length + 2 + rand_length + 2 + res_len + 2;
+
+    uint8_t output[32] = {};
+
+    s = (uint8_t*)calloc(s_len, sizeof(uint8_t));
+    if (s == nullptr) {
+      return err;
+    }
+
+    uint32_t i = 0;
+    s[i]       = 0x6B; // FC
+    i++;
+
+    // SSN
+    memcpy(&s[i], serving_network_name, strlen(serving_network_name));
+    i += ssn_length;
+    uint16_t ssn_length_value = htons(ssn_length);
+    memcpy(&s[i], &ssn_length_value, sizeof(ssn_length));
+    i += sizeof(ssn_length_value);
+
+    // RAND
+    memcpy(&s[i], rand, rand_length);
+    i += rand_length;
+    uint16_t rand_length_value = htons(rand_length);
+    memcpy(&s[i], &rand_length_value, sizeof(rand_length));
+    i += sizeof(rand_length_value);
+
+    // RES
+    memcpy(&s[i], res, res_len);
+    i += res_len;
+    uint16_t res_length_value = htons(res_len);
+    memcpy(&s[i], &res_length_value, sizeof(res_length_value));
+    i += sizeof(res_length_value);
+
+    // The input key Key shall be equal to the concatenation CK || IK of CK and IK.
+    memcpy(key, ck, 16);
+    memcpy(key + 16, ik, 16);
+
+    // Derive output
+    sha256(key, 32, s, s_len, output, 0);
+    memcpy(res_star, output + 16, 16);
+
+    free(s);
+    err = LIBLTE_SUCCESS;
+  }
+  return (err);
+}
+
 /*********************************************************************
     Name: liblte_security_generate_k_enb_star
 
@@ -211,22 +258,18 @@ LIBLTE_ERROR_ENUM liblte_security_generate_k_nas(uint8*                         
   LIBLTE_ERROR_ENUM err = LIBLTE_ERROR_INVALID_INPUTS;
   uint8             s[7];
 
-  if (k_asme != NULL && k_nas_enc != NULL) { //{}
-    if (enc_alg_id != LIBLTE_SECURITY_CIPHERING_ALGORITHM_ID_EEA0) {
-      // Construct S for KNASenc
-      s[0] = 0x15;       // FC
-      s[1] = 0x01;       // P0
-      s[2] = 0x00;       // First byte of L0
-      s[3] = 0x01;       // Second byte of L0
-      s[4] = enc_alg_id; // P1
-      s[5] = 0x00;       // First byte of L1
-      s[6] = 0x01;       // Second byte of L1
+  if (k_asme != NULL && k_nas_enc != NULL) {
+    // Construct S for KNASenc
+    s[0] = 0x15;       // FC
+    s[1] = 0x01;       // P0
+    s[2] = 0x00;       // First byte of L0
+    s[3] = 0x01;       // Second byte of L0
+    s[4] = enc_alg_id; // P1
+    s[5] = 0x00;       // First byte of L1
+    s[6] = 0x01;       // Second byte of L1
 
-      // Derive KNASenc
-      sha256(k_asme, 32, s, 7, k_nas_enc, 0);
-    } else {
-      memset(k_nas_enc, 0, 32);
-    }
+    // Derive KNASenc
+    sha256(k_asme, 32, s, 7, k_nas_enc, 0);
   }
 
   if (k_asme != NULL && k_nas_int != NULL) {
@@ -295,6 +338,114 @@ LIBLTE_ERROR_ENUM liblte_security_generate_k_rrc(uint8*                         
   return (err);
 }
 
+LIBLTE_ERROR_ENUM liblte_security_generate_k_nr_rrc(uint8*                                      k_gnb,
+                                                    LIBLTE_SECURITY_CIPHERING_ALGORITHM_ID_ENUM enc_alg_id,
+                                                    LIBLTE_SECURITY_INTEGRITY_ALGORITHM_ID_ENUM int_alg_id,
+                                                    uint8*                                      k_rrc_enc,
+                                                    uint8*                                      k_rrc_int)
+{
+  LIBLTE_ERROR_ENUM err = LIBLTE_ERROR_INVALID_INPUTS;
+  uint8             s[7];
+
+  if (k_gnb != NULL && k_rrc_enc != NULL && k_rrc_int != NULL) {
+    // Construct S for KRRCenc
+    s[0] = 0x69;       // FC
+    s[1] = 0x03;       // P0
+    s[2] = 0x00;       // First byte of L0
+    s[3] = 0x01;       // Second byte of L0
+    s[4] = enc_alg_id; // P1
+    s[5] = 0x00;       // First byte of L1
+    s[6] = 0x01;       // Second byte of L1
+
+    // Derive KRRCenc
+    sha256(k_gnb, 32, s, 7, k_rrc_enc, 0);
+
+    // Construct S for KRRCint
+    s[0] = 0x69;       // FC
+    s[1] = 0x04;       // P0
+    s[2] = 0x00;       // First byte of L0
+    s[3] = 0x01;       // Second byte of L0
+    s[4] = int_alg_id; // P1
+    s[5] = 0x00;       // First byte of L1
+    s[6] = 0x01;       // Second byte of L1
+
+    // Derive KRRCint
+    sha256(k_gnb, 32, s, 7, k_rrc_int, 0);
+
+    err = LIBLTE_SUCCESS;
+  }
+
+  return (err);
+}
+
+LIBLTE_ERROR_ENUM liblte_security_generate_k_nr_up(uint8*                                      k_gnb,
+                                                   LIBLTE_SECURITY_CIPHERING_ALGORITHM_ID_ENUM enc_alg_id,
+                                                   LIBLTE_SECURITY_INTEGRITY_ALGORITHM_ID_ENUM int_alg_id,
+                                                   uint8*                                      k_up_enc,
+                                                   uint8*                                      k_up_int)
+{
+  LIBLTE_ERROR_ENUM err = LIBLTE_ERROR_INVALID_INPUTS;
+  uint8             s[7];
+
+  if (k_gnb != NULL && k_up_enc != NULL && k_up_int != NULL) {
+    // Construct S for KUPenc
+    s[0] = 0x69;       // FC
+    s[1] = 0x05;       // P0
+    s[2] = 0x00;       // First byte of L0
+    s[3] = 0x01;       // Second byte of L0
+    s[4] = enc_alg_id; // P1
+    s[5] = 0x00;       // First byte of L1
+    s[6] = 0x01;       // Second byte of L1
+
+    // Derive KUPenc
+    sha256(k_gnb, 32, s, 7, k_up_enc, 0);
+
+    // Construct S for KUPint
+    s[0] = 0x69;       // FC
+    s[1] = 0x06;       // P0
+    s[2] = 0x00;       // First byte of L0
+    s[3] = 0x01;       // Second byte of L0
+    s[4] = int_alg_id; // P1
+    s[5] = 0x00;       // First byte of L1
+    s[6] = 0x01;       // Second byte of L1
+
+    // Derive KUPint
+    sha256(k_gnb, 32, s, 7, k_up_int, 0);
+
+    err = LIBLTE_SUCCESS;
+  }
+
+  return (err);
+}
+
+/*********************************************************************
+    Name: liblte_security_generate_sk_gnb
+
+    Description: Derivation of S-KeNB or S-KgNB for dual connectivity.
+
+    Document Reference: 33.401 v10.0.0 Annex A.15
+*********************************************************************/
+
+LIBLTE_ERROR_ENUM liblte_security_generate_sk_gnb(uint8_t* k_enb, uint8_t* sk_gnb, uint16_t scg_counter)
+{
+  LIBLTE_ERROR_ENUM err = LIBLTE_ERROR_INVALID_INPUTS;
+  uint8             s[5];
+
+  if (k_enb != NULL && sk_gnb != NULL) {
+    // Construct S for sk_gnb
+    s[0] = 0x1C;                      // FC
+    s[1] = (scg_counter >> 8) & 0xFF; // first byte of P0
+    s[2] = scg_counter & 0xFF;        // second byte of P0
+    s[3] = 0x00;                      // First byte of L0
+    s[4] = 0x02;                      // Second byte of L0
+
+    // Derive sk_gnb
+    sha256(k_enb, 32, s, 5, sk_gnb, 0);
+    err = LIBLTE_SUCCESS;
+  }
+
+  return (err);
+}
 /*********************************************************************
     Name: liblte_security_generate_k_up
 
@@ -475,97 +626,96 @@ LIBLTE_ERROR_ENUM liblte_security_128_eia2(const uint8*           key,
                                            LIBLTE_BIT_MSG_STRUCT* msg,
                                            uint8*                 mac)
 {
-  LIBLTE_ERROR_ENUM err = LIBLTE_ERROR_INVALID_INPUTS;
-  uint8             M[msg->N_bits * 8 + 8 + 16];
-  aes_context       ctx;
-  uint32            i;
-  uint32            j;
-  uint32            n;
-  uint32            pad_bits;
-  uint8             const_zero[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  uint8             L[16];
-  uint8             K1[16];
-  uint8             K2[16];
-  uint8             T[16];
-  uint8             tmp[16];
-
-  if (key != NULL && msg != NULL && mac != NULL) {
-    // Subkey L generation
-    aes_setkey_enc(&ctx, key, 128);
-    aes_crypt_ecb(&ctx, AES_ENCRYPT, const_zero, L);
-
-    // Subkey K1 generation
-    for (i = 0; i < 15; i++) {
-      K1[i] = (L[i] << 1) | ((L[i + 1] >> 7) & 0x01);
-    }
-    K1[15] = L[15] << 1;
-    if (L[0] & 0x80) {
-      K1[15] ^= 0x87;
-    }
-
-    // Subkey K2 generation
-    for (i = 0; i < 15; i++) {
-      K2[i] = (K1[i] << 1) | ((K1[i + 1] >> 7) & 0x01);
-    }
-    K2[15] = K1[15] << 1;
-    if (K1[0] & 0x80) {
-      K2[15] ^= 0x87;
-    }
-
-    // Construct M
-    memset(M, 0, msg->N_bits * 8 + 8 + 16);
-    M[0] = (count >> 24) & 0xFF;
-    M[1] = (count >> 16) & 0xFF;
-    M[2] = (count >> 8) & 0xFF;
-    M[3] = count & 0xFF;
-    M[4] = (bearer << 3) | (direction << 2);
-    for (i = 0; i < msg->N_bits / 8; i++) {
-      M[8 + i] = 0;
-      for (j = 0; j < 8; j++) {
-        M[8 + i] |= msg->msg[i * 8 + j] << (7 - j);
-      }
-    }
-    if ((msg->N_bits % 8) != 0) {
-      M[8 + i] = 0;
-      for (j = 0; j < msg->N_bits % 8; j++) {
-        M[8 + i] |= msg->msg[i * 8 + j] << (7 - j);
-      }
-    }
-
-    // MAC generation
-    n = (uint32)(ceilf((float)(msg->N_bits + 64) / (float)(128)));
-    for (i = 0; i < 16; i++) {
-      T[i] = 0;
-    }
-    for (i = 0; i < n - 1; i++) {
-      for (j = 0; j < 16; j++) {
-        tmp[j] = T[j] ^ M[i * 16 + j];
-      }
-      aes_crypt_ecb(&ctx, AES_ENCRYPT, tmp, T);
-    }
-    pad_bits = (msg->N_bits + 64) % 128;
-    if (pad_bits == 0) {
-      for (j = 0; j < 16; j++) {
-        tmp[j] = T[j] ^ K1[j] ^ M[i * 16 + j];
-      }
-      aes_crypt_ecb(&ctx, AES_ENCRYPT, tmp, T);
-    } else {
-      pad_bits = (128 - pad_bits) - 1;
-      M[i * 16 + (15 - (pad_bits / 8))] |= 0x1 << (pad_bits % 8);
-      for (j = 0; j < 16; j++) {
-        tmp[j] = T[j] ^ K2[j] ^ M[i * 16 + j];
-      }
-      aes_crypt_ecb(&ctx, AES_ENCRYPT, tmp, T);
-    }
-
-    for (i = 0; i < 4; i++) {
-      mac[i] = T[i];
-    }
-
-    err = LIBLTE_SUCCESS;
+  if (!key || !msg || !mac) {
+    return LIBLTE_ERROR_INVALID_INPUTS;
   }
 
-  return (err);
+  uint8       M[msg->N_bits * 8 + 8 + 16];
+  aes_context ctx;
+  uint32      i;
+  uint32      j;
+  uint32      n;
+  uint32      pad_bits;
+  uint8       const_zero[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8       L[16];
+  uint8       K1[16];
+  uint8       K2[16];
+  uint8       T[16];
+  uint8       tmp[16];
+
+  // Subkey L generation
+  aes_setkey_enc(&ctx, key, 128);
+  aes_crypt_ecb(&ctx, AES_ENCRYPT, const_zero, L);
+
+  // Subkey K1 generation
+  for (i = 0; i < 15; i++) {
+    K1[i] = (L[i] << 1) | ((L[i + 1] >> 7) & 0x01);
+  }
+  K1[15] = L[15] << 1;
+  if (L[0] & 0x80) {
+    K1[15] ^= 0x87;
+  }
+
+  // Subkey K2 generation
+  for (i = 0; i < 15; i++) {
+    K2[i] = (K1[i] << 1) | ((K1[i + 1] >> 7) & 0x01);
+  }
+  K2[15] = K1[15] << 1;
+  if (K1[0] & 0x80) {
+    K2[15] ^= 0x87;
+  }
+
+  // Construct M
+  memset(M, 0, msg->N_bits * 8 + 8 + 16);
+  M[0] = (count >> 24) & 0xFF;
+  M[1] = (count >> 16) & 0xFF;
+  M[2] = (count >> 8) & 0xFF;
+  M[3] = count & 0xFF;
+  M[4] = (bearer << 3) | (direction << 2);
+  for (i = 0; i < msg->N_bits / 8; i++) {
+    M[8 + i] = 0;
+    for (j = 0; j < 8; j++) {
+      M[8 + i] |= msg->msg[i * 8 + j] << (7 - j);
+    }
+  }
+  if ((msg->N_bits % 8) != 0) {
+    M[8 + i] = 0;
+    for (j = 0; j < msg->N_bits % 8; j++) {
+      M[8 + i] |= msg->msg[i * 8 + j] << (7 - j);
+    }
+  }
+
+  // MAC generation
+  n = (uint32)(ceilf((float)(msg->N_bits + 64) / (float)(128)));
+  for (i = 0; i < 16; i++) {
+    T[i] = 0;
+  }
+  for (i = 0; i < n - 1; i++) {
+    for (j = 0; j < 16; j++) {
+      tmp[j] = T[j] ^ M[i * 16 + j];
+    }
+    aes_crypt_ecb(&ctx, AES_ENCRYPT, tmp, T);
+  }
+  pad_bits = (msg->N_bits + 64) % 128;
+  if (pad_bits == 0) {
+    for (j = 0; j < 16; j++) {
+      tmp[j] = T[j] ^ K1[j] ^ M[i * 16 + j];
+    }
+    aes_crypt_ecb(&ctx, AES_ENCRYPT, tmp, T);
+  } else {
+    pad_bits = (128 - pad_bits) - 1;
+    M[i * 16 + (15 - (pad_bits / 8))] |= 0x1 << (pad_bits % 8);
+    for (j = 0; j < 16; j++) {
+      tmp[j] = T[j] ^ K2[j] ^ M[i * 16 + j];
+    }
+    aes_crypt_ecb(&ctx, AES_ENCRYPT, tmp, T);
+  }
+
+  for (i = 0; i < 4; i++) {
+    mac[i] = T[i];
+  }
+
+  return LIBLTE_SUCCESS;
 }
 
 uint32_t GET_WORD(uint32_t* DATA, uint32_t i)
@@ -1065,13 +1215,13 @@ liblte_security_milenage_f2345(uint8* k, uint8* op_c, uint8* rand, uint8* res, u
     for (i = 0; i < 16; i++) {
       input[i] = rand[i] ^ op_c[i];
     }
-    mbedtls_aes_crypt_ecb(&ctx, AES_ENCRYPT, input, temp);
+    aes_crypt_ecb(&ctx, AES_ENCRYPT, input, temp);
     // Compute out for RES and AK
     for (i = 0; i < 16; i++) {
       input[i] = temp[i] ^ op_c[i];
     }
     input[15] ^= 1;
-    mbedtls_aes_crypt_ecb(&ctx, AES_ENCRYPT, input, out);
+    aes_crypt_ecb(&ctx, AES_ENCRYPT, input, out);
     for (i = 0; i < 16; i++) {
       out[i] ^= op_c[i];
     }
@@ -1091,7 +1241,7 @@ liblte_security_milenage_f2345(uint8* k, uint8* op_c, uint8* rand, uint8* res, u
       input[(i + 12) % 16] = temp[i] ^ op_c[i];
     }
     input[15] ^= 2;
-    mbedtls_aes_crypt_ecb(&ctx, AES_ENCRYPT, input, out);
+    aes_crypt_ecb(&ctx, AES_ENCRYPT, input, out);
     for (i = 0; i < 16; i++) {
       out[i] ^= op_c[i];
     }
@@ -1106,7 +1256,7 @@ liblte_security_milenage_f2345(uint8* k, uint8* op_c, uint8* rand, uint8* res, u
       input[(i + 8) % 16] = temp[i] ^ op_c[i];
     }
     input[15] ^= 4;
-    mbedtls_aes_crypt_ecb(&ctx, AES_ENCRYPT, input, out);
+    aes_crypt_ecb(&ctx, AES_ENCRYPT, input, out);
     for (i = 0; i < 16; i++) {
       out[i] ^= op_c[i];
     }

@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -22,8 +22,8 @@
 #ifndef SRSENB_TA_H
 #define SRSENB_TA_H
 
-#include "srslte/config.h"
-#include "srslte/phy/common/phy_common.h"
+#include "srsran/config.h"
+#include "srsran/phy/common/phy_common.h"
 
 #include <cmath>
 #include <vector>
@@ -76,6 +76,8 @@ private:
     float    ta_us; ///< TA measurement in microseconds
   } ta_meas_t;
 
+  std::mutex mutex;
+
   uint32_t               meas_t_ms  = 0; ///< Time counter in milliseconds
   uint32_t               meas_count = 0; ///< Number of measures in the buffer
   uint32_t               meas_idx   = 0; ///< Next mesurement index in the buffer
@@ -118,7 +120,7 @@ private:
     }
 
     // Return the n_ta value
-    return static_cast<int>(std::roundf(ta_us * 1e-6f / SRSLTE_LTE_TS / 16.0f));
+    return static_cast<int>(std::roundf(ta_us * 1e-6f / SRSRAN_LTE_TS / 16.0f));
   }
 
   /**
@@ -206,6 +208,7 @@ public:
    */
   void start()
   {
+    std::lock_guard<std::mutex> lock(mutex);
     // Transition to idle only if the current state is idle
     if (state == state_idle) {
       state = state_measure;
@@ -220,6 +223,7 @@ public:
    */
   uint32_t push_value(float ta_us)
   {
+    std::lock_guard<std::mutex> lock(mutex);
     // Put measurement if state is measurement
     if (state == state_measure) {
       // Set measurement
@@ -247,6 +251,7 @@ public:
    */
   uint32_t tick()
   {
+    std::lock_guard<std::mutex> lock(mutex);
     // Increase measurement timestamp counter
     meas_t_ms++;
 

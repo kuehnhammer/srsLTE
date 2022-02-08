@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef ENB_CFG_PARSER_SIB1_H
-#define ENB_CFG_PARSER_SIB1_H
+#ifndef ENB_CFG_PARSER_H
+#define ENB_CFG_PARSER_H
 
 #include "srsenb/hdr/parser.h"
 #include <iostream>
@@ -31,7 +31,7 @@
 #include <string>
 
 #include "srsenb/hdr/stack/rrc/rrc.h"
-#include "srslte/asn1/asn1_utils.h"
+#include "srsran/asn1/asn1_utils.h"
 
 namespace srsenb {
 
@@ -39,15 +39,17 @@ using namespace libconfig;
 
 struct all_args_t;
 struct phy_cfg_t;
+struct rrc_nr_cfg_t;
 
 bool sib_is_present(const asn1::rrc::sched_info_list_l& l, asn1::rrc::sib_type_e sib_num);
 
 // enb.conf parsing
 namespace enb_conf_sections {
 
-int parse_cell_cfg(all_args_t* args_, srslte_cell_t* cell);
-int parse_cfg_files(all_args_t* args_, rrc_cfg_t* rrc_cfg_, phy_cfg_t* phy_cfg_);
-int set_derived_args(all_args_t* args_, rrc_cfg_t* rrc_cfg_, phy_cfg_t* phy_cfg_, const srslte_cell_t& cell_cfg_);
+int parse_cell_cfg(all_args_t* args_, srsran_cell_t* cell);
+int parse_cfg_files(all_args_t* args_, rrc_cfg_t* rrc_cfg_, rrc_nr_cfg_t* rrc_cfg_nr_, phy_cfg_t* phy_cfg_);
+int set_derived_args(all_args_t* args_, rrc_cfg_t* rrc_cfg_, phy_cfg_t* phy_cfg_, const srsran_cell_t& cell_cfg_);
+int set_derived_args_nr(all_args_t* args_, rrc_nr_cfg_t* rrc_nr_cfg_, phy_cfg_t* phy_cfg_);
 
 } // namespace enb_conf_sections
 
@@ -84,11 +86,28 @@ public:
 
   int parse(Setting& root) override;
 
-  const char* get_name() override { return "meas_cell_list"; }
+  const char* get_name() override { return "cell_list"; }
 
 private:
   rrc_cfg_t*  rrc_cfg;
   all_args_t* args;
+};
+
+class nr_cell_list_section final : public parser::field_itf
+{
+public:
+  explicit nr_cell_list_section(all_args_t* all_args_, rrc_nr_cfg_t* nr_rrc_cfg_, rrc_cfg_t* eutra_rrc_cfg_) :
+    args(all_args_), nr_rrc_cfg(nr_rrc_cfg_), eutra_rrc_cfg(eutra_rrc_cfg_)
+  {}
+
+  int parse(Setting& root) override;
+
+  const char* get_name() override { return "nr_cell_list"; }
+
+private:
+  rrc_nr_cfg_t* nr_rrc_cfg;
+  rrc_cfg_t*    eutra_rrc_cfg;
+  all_args_t*   args;
 };
 
 } // namespace rr_sections
@@ -155,16 +174,28 @@ private:
   uint32_t  default_offset;
 };
 
+class field_srb final : public parser::field_itf
+{
+public:
+  explicit field_srb(srb_cfg_t& cfg_) : cfg(cfg_) {}
+  const char* get_name() override { return "field_srb"; }
+
+  int parse(Setting& root) override;
+
+private:
+  srb_cfg_t& cfg;
+};
+
 class field_qci final : public parser::field_itf
 {
 public:
-  explicit field_qci(rrc_cfg_qci_t* cfg_) { cfg = cfg_; }
+  explicit field_qci(std::map<uint32_t, rrc_cfg_qci_t>& cfg_) : cfg(cfg_) {}
   const char* get_name() override { return "field_cqi"; }
 
   int parse(Setting& root) override;
 
 private:
-  rrc_cfg_qci_t* cfg;
+  std::map<uint32_t, rrc_cfg_qci_t>& cfg;
 };
 
 // ASN1 parsers
@@ -183,7 +214,6 @@ public:
   int parse(Setting& root) override
   {
     if (root.exists(name)) {
-
       if (enabled_value) {
         *enabled_value = true;
       }
@@ -212,10 +242,8 @@ class field_asn1_seqof_size : public field_asn1
 
 public:
   field_asn1_seqof_size(const char* name_, ListType* store_ptr_, bool* enabled_value_ = nullptr) :
-    field_asn1(name_, enabled_value_),
-    store_ptr(store_ptr_)
-  {
-  }
+    field_asn1(name_, enabled_value_), store_ptr(store_ptr_)
+  {}
 
   int parse_value(Setting& root) override
   {
@@ -242,10 +270,8 @@ class field_asn1_choice_type_number : public field_asn1
 
 public:
   field_asn1_choice_type_number(const char* name_, ChoiceType* store_ptr_, bool* enabled_value_ = nullptr) :
-    field_asn1(name_, enabled_value_),
-    store_ptr(store_ptr_)
-  {
-  }
+    field_asn1(name_, enabled_value_), store_ptr(store_ptr_)
+  {}
 
   int parse_value(Setting& root) override
   {
@@ -308,9 +334,9 @@ bool parse_enum_by_number_str(EnumType& enum_val, const char* name, Setting& roo
     bool found = asn1::number_string_to_enum(enum_val, val);
     if (not found) {
       fprintf(stderr, "PARSER ERROR: Invalid option: \"%s\" for field \"%s\"\n", val.c_str(), name);
-      fprintf(stderr, "Valid options:  \"%s\"", EnumType((typename EnumType::options)0).to_number_string().c_str());
+      fprintf(stderr, "Valid options:  \"%s\"", EnumType((typename EnumType::options)0).to_number_string());
       for (uint32_t i = 1; i < EnumType::nof_types; i++) {
-        fprintf(stderr, ", \"%s\"", EnumType((typename EnumType::options)i).to_number_string().c_str());
+        fprintf(stderr, ", \"%s\"", EnumType((typename EnumType::options)i).to_number_string());
       }
       fprintf(stderr, "\n");
       return false;
@@ -328,9 +354,9 @@ bool parse_enum_by_str(EnumType& enum_val, const char* name, Setting& root)
     bool found = asn1_parsers::nowhitespace_string_to_enum(enum_val, val);
     if (not found) {
       fprintf(stderr, "PARSER ERROR: Invalid option: \"%s\" for field \"%s\"\n", val.c_str(), name);
-      fprintf(stderr, "Valid options:  \"%s\"", EnumType((typename EnumType::options)0).to_string().c_str());
+      fprintf(stderr, "Valid options:  \"%s\"", EnumType((typename EnumType::options)0).to_string());
       for (uint32_t i = 1; i < EnumType::nof_types; i++) {
-        fprintf(stderr, ", \"%s\"", EnumType((typename EnumType::options)i).to_string().c_str());
+        fprintf(stderr, ", \"%s\"", EnumType((typename EnumType::options)i).to_string());
       }
       fprintf(stderr, "\n");
       return false;
@@ -347,10 +373,8 @@ class field_asn1_enum_number : public field_asn1
 
 public:
   field_asn1_enum_number(const char* name_, EnumType* store_ptr_, bool* enabled_value_ = nullptr) :
-    field_asn1(name_, enabled_value_),
-    store_ptr(store_ptr_)
-  {
-  }
+    field_asn1(name_, enabled_value_), store_ptr(store_ptr_)
+  {}
 
   int parse_value(Setting& root) override
   {
@@ -373,10 +397,8 @@ class field_asn1_enum_str : public field_asn1
 
 public:
   field_asn1_enum_str(const char* name_, EnumType* store_ptr_, bool* enabled_value_ = nullptr) :
-    field_asn1(name_, enabled_value_),
-    store_ptr(store_ptr_)
-  {
-  }
+    field_asn1(name_, enabled_value_), store_ptr(store_ptr_)
+  {}
 
   int parse_value(Setting& root) override
   {
@@ -398,10 +420,8 @@ class field_asn1_enum_number_str : public field_asn1
 
 public:
   field_asn1_enum_number_str(const char* name_, EnumType* store_ptr_, bool* enabled_value_ = nullptr) :
-    field_asn1(name_, enabled_value_),
-    store_ptr(store_ptr_)
-  {
-  }
+    field_asn1(name_, enabled_value_), store_ptr(store_ptr_)
+  {}
 
   int parse_value(Setting& root) override
   {
@@ -427,12 +447,8 @@ public:
                         func_ptr    f_,
                         ChoiceType* store_ptr_,
                         bool*       enabled_value_ = nullptr) :
-    field_asn1(name_, enabled_value_),
-    store_ptr(store_ptr_),
-    choicetypename(choicetypename_),
-    f(f_)
-  {
-  }
+    field_asn1(name_, enabled_value_), store_ptr(store_ptr_), choicetypename(choicetypename_), f(f_)
+  {}
 
   int parse_value(Setting& root) override
   {
@@ -474,12 +490,8 @@ public:
                            func_ptr    f_,
                            ChoiceType* store_ptr_,
                            bool*       enabled_value_ = nullptr) :
-    field_asn1(name_, enabled_value_),
-    store_ptr(store_ptr_),
-    choicetypename(choicetypename_),
-    f(f_)
-  {
-  }
+    field_asn1(name_, enabled_value_), store_ptr(store_ptr_), choicetypename(choicetypename_), f(f_)
+  {}
 
   int parse_value(Setting& root) override
   {
@@ -508,10 +520,8 @@ class field_asn1_bitstring_number : public field_asn1
 
 public:
   field_asn1_bitstring_number(const char* name_, BitString* store_ptr_, bool* enabled_value_ = nullptr) :
-    field_asn1(name_, enabled_value_),
-    store_ptr(store_ptr_)
-  {
-  }
+    field_asn1(name_, enabled_value_), store_ptr(store_ptr_)
+  {}
 
   int parse_value(Setting& root) override
   {
@@ -552,10 +562,8 @@ class mbsfn_sf_cfg_list_parser : public parser::field_itf
 {
 public:
   mbsfn_sf_cfg_list_parser(asn1::rrc::mbsfn_sf_cfg_list_l* mbsfn_list_, bool* enabled_) :
-    mbsfn_list(mbsfn_list_),
-    enabled(enabled_)
-  {
-  }
+    mbsfn_list(mbsfn_list_), enabled(enabled_)
+  {}
   int         parse(Setting& root) override;
   const char* get_name() override { return "mbsfnSubframeConfigList"; }
 
@@ -568,10 +576,8 @@ class mbsfn_area_info_list_parser final : public parser::field_itf
 {
 public:
   mbsfn_area_info_list_parser(asn1::rrc::mbsfn_area_info_list_r9_l* mbsfn_list_, bool* enabled_) :
-    mbsfn_list(mbsfn_list_),
-    enabled(enabled_)
-  {
-  }
+    mbsfn_list(mbsfn_list_), enabled(enabled_)
+  {}
   int         parse(Setting& root) override;
   const char* get_name() override { return "mbsfn_area_info_list"; }
 
@@ -581,4 +587,4 @@ private:
 };
 } // namespace srsenb
 
-#endif
+#endif // ENB_CFG_PARSER_H

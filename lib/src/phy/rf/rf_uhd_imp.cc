@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -19,6 +19,7 @@
  *
  */
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <string>
@@ -28,7 +29,8 @@
 #include <uhd/usrp/multi_usrp.hpp>
 
 #include "rf_helper.h"
-#include "srslte/srslte.h"
+#include "srsran/phy/utils/debug.h"
+#include "srsran/phy/utils/vector.h"
 
 #include "rf_uhd_generic.h"
 #include "rf_uhd_imp.h"
@@ -46,22 +48,25 @@
  * - BURST: A burst has started
  * - END_OF_BURST: An underflow, overflow or late has been detected, the next transmission shall be aborted and an end
  *                 of burst will be send in the next transmission;
+ * - WAIT_EOB_ACK: Waits for either an end of burst ACK event or a transmission after EOB_ACK_TIMEOUT_S the
+ *                 Late/Underflow occurred.
  * - START_BURST: The next transmission will be flagged as start of burst.
  *
- *   +-------+ L/O/U detected +--------------+   EoB Sent   +-------------+
- *   | Burst |--------------->| End-of-burst |------------->| Start burst |<---  Initial state
- *   +-------+   |            +--------------+         ^    +-------------+
- *      ^        |                                     |           |
- *      |        |               Burst ACK             |           |
- *      |        +-------------------------------------+           |
- *      |                                                          |
- *      |               Start of burst is transmitted              |
- *      +----------------------------------------------------------+
+ *   +-------+ L/O/U detected +--------------+   EoB Sent  +--------------+  EOB ACK Rx +-------------+
+ *   | Burst |--------------->| End-of-burst |------------>| Wait EOB ACK |------------>| Start burst |<-- Initial state
+ *   +-------+                +--------------+             +--------------+             +-------------+
+ *      ^                                                         |                            |
+ *      |                                                         | New Transmission           | New Transmission
+ *      |                                                         | (TS timed out)             |
+ *      |                                                         |                            |
+ *      |               Start of burst is transmitted             |                            |
+ *      +---------------------------------------------------------+----------------------------+
  */
 typedef enum {
   RF_UHD_IMP_TX_STATE_START_BURST = 0,
   RF_UHD_IMP_TX_STATE_BURST,
   RF_UHD_IMP_TX_STATE_END_OF_BURST,
+  RF_UHD_IMP_TX_STATE_WAIT_EOB_ACK ///< Wait for enb-of-burst ACK
 } rf_uhd_imp_underflow_state_t;
 
 /**
@@ -78,9 +83,19 @@ const std::set<std::string> RF_UHD_IMP_PROHIBITED_STREAM_REMAKE = {DEVNAME_X300,
                                                                    DEVNAME_B200};
 
 /**
+ * List of devices that do NOT support end of burst flushing
+ */
+const std::set<std::string> RF_UHD_IMP_PROHIBITED_EOB_FLUSH = {DEVNAME_X300, DEVNAME_N300};
+
+/**
  * List of devices that do NOT require/support to restart streaming after rate changes/timeouts
  */
 const std::set<std::string> RF_UHD_IMP_PROHIBITED_STOP_START = {DEVNAME_B200};
+
+/**
+ * List of devices that work better if timespec is sent at the start of the burst only
+ */
+const std::set<std::string> RF_UHD_IMP_TIMESPEC_AT_BURST_START_ONLY = {DEVNAME_X300, DEVNAME_N300};
 
 /**
  * Defines a delay used between the current USRP time and the start of the transmission. This value needs to be high
@@ -114,22 +129,35 @@ static const std::chrono::milliseconds RF_UHD_IMP_ASYNCH_MSG_SLEEP_MS = std::chr
  */
 static const uint32_t RF_UHD_IMP_MAX_RX_TRIALS = 100;
 
+/**
+ * Timeout for end of burst ack.
+ */
+static const double RF_UHD_IMP_WAIT_EOB_ACK_TIMEOUT_S = 2.0;
+
 struct rf_uhd_handler_t {
+  size_t id;
+
   std::string                            devname;
   std::shared_ptr<rf_uhd_safe_interface> uhd = nullptr;
 
-  srslte_rf_info_t info;
-  size_t           rx_nof_samples      = 0;
-  size_t           tx_nof_samples      = 0;
-  double           tx_rate             = 1.92e6;
-  double           rx_rate             = 1.92e6;
-  bool             dynamic_master_rate = true;
-  uint32_t         nof_rx_channels     = 0;
-  uint32_t         nof_tx_channels     = 0;
+  srsran_rf_info_t                        info;
+  size_t                                  rx_nof_samples      = 0;
+  size_t                                  tx_nof_samples      = 0;
+  double                                  tx_rate             = 1.92e6;
+  double                                  rx_rate             = 1.92e6;
+  bool                                    dynamic_master_rate = true;
+  uint32_t                                nof_rx_channels     = 0;
+  uint32_t                                nof_tx_channels     = 0;
+  std::array<double, SRSRAN_MAX_CHANNELS> tx_freq             = {};
+  std::array<double, SRSRAN_MAX_CHANNELS> rx_freq             = {};
 
-  srslte_rf_error_handler_t    uhd_error_handler     = nullptr;
-  void*                        uhd_error_handler_arg = nullptr;
-  rf_uhd_imp_underflow_state_t tx_state              = RF_UHD_IMP_TX_STATE_START_BURST;
+  std::mutex                                                 tx_gain_mutex;
+  std::array<std::pair<double, double>, SRSRAN_MAX_CHANNELS> tx_gain_db = {};
+
+  srsran_rf_error_handler_t                 uhd_error_handler     = nullptr;
+  void*                                     uhd_error_handler_arg = nullptr;
+  std::atomic<rf_uhd_imp_underflow_state_t> tx_state              = {RF_UHD_IMP_TX_STATE_START_BURST};
+  uhd::time_spec_t                          eob_ack_timeout       = {}; //< Set when a Underflow/Late happens
 
   double current_master_clock = 0.0;
 
@@ -140,12 +168,16 @@ struct rf_uhd_handler_t {
 
 #if HAVE_ASYNC_THREAD
   // Asynchronous transmission message thread
-  bool                    async_thread_running = false;
+  std::atomic<bool>       async_thread_running{false};
   std::thread             async_thread;
   std::mutex              async_mutex;
   std::condition_variable async_cvar;
 #endif /* HAVE_ASYNC_THREAD */
 };
+
+// Store UHD Handler instances as shared pointer to avoid new/delete
+static std::map<size_t, std::shared_ptr<rf_uhd_handler_t> > rf_uhd_map;
+static size_t                                               uhd_handler_counter = 0;
 
 #if UHD_VERSION < 31100
 static void (*handler)(const char*);
@@ -170,38 +202,36 @@ void suppress_handler(const char* x)
   // do nothing
 }
 
-static cf_t zero_mem[64 * 1024] = {};
-
-#define print_usrp_error(h)                                                                                            \
-  do {                                                                                                                 \
-    ERROR("USRP reported the following error: %s\n", h->uhd->last_error.c_str());                                      \
-  } while (false)
+static std::array<cf_t, 64 * 1024> zero_mem  = {}; // For transmitting zeros
+static std::array<cf_t, 64 * 1024> dummy_mem = {}; // For receiving
 
 static void log_overflow(rf_uhd_handler_t* h)
 {
+  std::unique_lock<std::mutex> lock(h->tx_mutex);
   if (h->tx_state == RF_UHD_IMP_TX_STATE_BURST) {
     h->tx_state = RF_UHD_IMP_TX_STATE_END_OF_BURST;
   }
 
   if (h->uhd_error_handler != nullptr) {
-    srslte_rf_error_t error;
-    bzero(&error, sizeof(srslte_rf_error_t));
-    error.type = srslte_rf_error_t::SRSLTE_RF_ERROR_OVERFLOW;
+    srsran_rf_error_t error;
+    bzero(&error, sizeof(srsran_rf_error_t));
+    error.type = srsran_rf_error_t::SRSRAN_RF_ERROR_OVERFLOW;
     h->uhd_error_handler(h->uhd_error_handler_arg, error);
   }
 }
 
 static void log_late(rf_uhd_handler_t* h, bool is_rx)
 {
+  std::unique_lock<std::mutex> lock(h->tx_mutex);
   if (h->tx_state == RF_UHD_IMP_TX_STATE_BURST) {
     h->tx_state = RF_UHD_IMP_TX_STATE_END_OF_BURST;
   }
 
   if (h->uhd_error_handler != nullptr) {
-    srslte_rf_error_t error;
-    bzero(&error, sizeof(srslte_rf_error_t));
+    srsran_rf_error_t error;
+    bzero(&error, sizeof(srsran_rf_error_t));
     error.opt  = is_rx ? 1 : 0;
-    error.type = srslte_rf_error_t::SRSLTE_RF_ERROR_LATE;
+    error.type = srsran_rf_error_t::SRSRAN_RF_ERROR_LATE;
     h->uhd_error_handler(h->uhd_error_handler_arg, error);
   }
 }
@@ -209,14 +239,17 @@ static void log_late(rf_uhd_handler_t* h, bool is_rx)
 #if HAVE_ASYNC_THREAD
 static void log_underflow(rf_uhd_handler_t* h)
 {
-  // Flag underflow
-  if (h->tx_state == RF_UHD_IMP_TX_STATE_BURST) {
-    h->tx_state = RF_UHD_IMP_TX_STATE_END_OF_BURST;
+  {
+    std::lock_guard<std::mutex> tx_lock(h->tx_mutex);
+    // Flag underflow
+    if (h->tx_state == RF_UHD_IMP_TX_STATE_BURST) {
+      h->tx_state = RF_UHD_IMP_TX_STATE_END_OF_BURST;
+    }
   }
   if (h->uhd_error_handler != nullptr) {
-    srslte_rf_error_t error;
-    bzero(&error, sizeof(srslte_rf_error_t));
-    error.type = srslte_rf_error_t::SRSLTE_RF_ERROR_UNDERFLOW;
+    srsran_rf_error_t error;
+    bzero(&error, sizeof(srsran_rf_error_t));
+    error.type = srsran_rf_error_t::SRSRAN_RF_ERROR_UNDERFLOW;
     h->uhd_error_handler(h->uhd_error_handler_arg, error);
   }
 }
@@ -225,11 +258,9 @@ static void log_underflow(rf_uhd_handler_t* h)
 static void log_rx_error(rf_uhd_handler_t* h)
 {
   if (h->uhd_error_handler) {
-    ERROR("USRP reported the following error: %s\n", h->uhd->last_error.c_str());
-
-    srslte_rf_error_t error;
-    bzero(&error, sizeof(srslte_rf_error_t));
-    error.type = srslte_rf_error_t::SRSLTE_RF_ERROR_RX;
+    srsran_rf_error_t error;
+    bzero(&error, sizeof(srsran_rf_error_t));
+    error.type = srsran_rf_error_t::SRSRAN_RF_ERROR_RX;
     h->uhd_error_handler(h->uhd_error_handler_arg, error);
   }
 }
@@ -237,8 +268,10 @@ static void log_rx_error(rf_uhd_handler_t* h)
 #if HAVE_ASYNC_THREAD
 static void* async_thread(void* h)
 {
-  rf_uhd_handler_t*     handler = (rf_uhd_handler_t*)h;
-  uhd::async_metadata_t md;
+  rf_uhd_handler_t*     handler           = (rf_uhd_handler_t*)h;
+  uhd::async_metadata_t md                = {};
+  uhd::time_spec_t      last_underflow_ts = {};
+  uhd::time_spec_t      last_late_ts      = {};
 
   while (handler->async_thread_running) {
     std::unique_lock<std::mutex> lock(handler->async_mutex);
@@ -252,7 +285,6 @@ static void* async_thread(void* h)
     if (handler->uhd->is_tx_ready()) {
       lock.unlock();
       if (handler->uhd->recv_async_msg(md, RF_UHD_IMP_ASYNCH_MSG_TIMEOUT_S, valid) != UHD_ERROR_NONE) {
-        print_usrp_error(handler);
         return nullptr;
       }
 
@@ -260,16 +292,25 @@ static void* async_thread(void* h)
         const uhd::async_metadata_t::event_code_t& event_code = md.event_code;
         if (event_code == uhd::async_metadata_t::EVENT_CODE_UNDERFLOW ||
             event_code == uhd::async_metadata_t::EVENT_CODE_UNDERFLOW_IN_PACKET) {
-          log_underflow(handler);
+          if (md.time_spec != last_underflow_ts) {
+            last_underflow_ts        = md.time_spec;
+            handler->eob_ack_timeout = md.time_spec + RF_UHD_IMP_WAIT_EOB_ACK_TIMEOUT_S;
+            log_underflow(handler);
+          }
         } else if (event_code == uhd::async_metadata_t::EVENT_CODE_TIME_ERROR) {
-          log_late(handler, false);
+          if (md.time_spec != last_late_ts) {
+            last_late_ts             = md.time_spec;
+            handler->eob_ack_timeout = md.time_spec + RF_UHD_IMP_WAIT_EOB_ACK_TIMEOUT_S;
+            log_late(handler, false);
+          }
         } else if (event_code == uhd::async_metadata_t::EVENT_CODE_BURST_ACK) {
           // Makes sure next block will be start of burst
-          if (handler->tx_state == RF_UHD_IMP_TX_STATE_BURST) {
+          std::lock_guard<std::mutex> tx_lock(handler->tx_mutex);
+          if (handler->tx_state == RF_UHD_IMP_TX_STATE_WAIT_EOB_ACK) {
             handler->tx_state = RF_UHD_IMP_TX_STATE_START_BURST;
           }
         } else {
-          ERROR("UHD unhandled event code %d\n", event_code);
+          ERROR("UHD unhandled event code %d", event_code);
         }
       } else {
         std::this_thread::sleep_for(RF_UHD_IMP_ASYNCH_MSG_SLEEP_MS);
@@ -281,10 +322,8 @@ static void* async_thread(void* h)
 }
 #endif
 
-static inline void uhd_free(rf_uhd_handler_t* h)
+static inline void uhd_free(rf_uhd_handler_t* handler)
 {
-  rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
-
   // NULL handler, return
   if (handler == nullptr) {
     return;
@@ -298,7 +337,8 @@ static inline void uhd_free(rf_uhd_handler_t* h)
   }
 #endif
 
-  delete handler;
+  // Erase element from MAP
+  rf_uhd_map.erase(handler->id);
 }
 
 void rf_uhd_suppress_stdout(void* h)
@@ -306,7 +346,7 @@ void rf_uhd_suppress_stdout(void* h)
   rf_uhd_register_msg_handler_c(suppress_handler);
 }
 
-void rf_uhd_register_error_handler(void* h, srslte_rf_error_handler_t new_handler, void* arg)
+void rf_uhd_register_error_handler(void* h, srsran_rf_error_handler_t new_handler, void* arg)
 {
   rf_uhd_handler_t* handler      = (rf_uhd_handler_t*)h;
   handler->uhd_error_handler     = new_handler;
@@ -342,8 +382,7 @@ static int set_time_to_gps_time(rf_uhd_handler_t* handler)
 
   std::vector<std::string> sensors;
   if (handler->uhd->get_mboard_sensor_names(sensors) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   // Find sensor
@@ -361,25 +400,23 @@ static int set_time_to_gps_time(rf_uhd_handler_t* handler)
 
   // No sensor found
   if (not found) {
-    ERROR("Sensor '%s` not found.\n", sensor_name.c_str());
+    ERROR("Sensor '%s` not found.", sensor_name.c_str());
     return UHD_ERROR_NONE;
   }
 
   // Get actual sensor value
   double frac_secs = 0.0;
   if (handler->uhd->get_sensor(sensor_name, frac_secs) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   // Get time and set
   printf("Setting USRP time to %fs\n", frac_secs);
   if (handler->uhd->set_time_unknown_pps(uhd::time_spec_t(frac_secs)) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
 // timeout in ms
@@ -396,14 +433,12 @@ static int wait_sensor_locked(rf_uhd_handler_t*  handler,
   if (is_mboard) {
     // motherboard sensor
     if (handler->uhd->get_mboard_sensor_names(sensors) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
   } else {
     // daughterboard sensor
     if (handler->uhd->get_rx_sensor_names(sensors) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
   }
 
@@ -422,7 +457,7 @@ static int wait_sensor_locked(rf_uhd_handler_t*  handler,
 
   // No sensor found
   if (not found) {
-    ERROR("Sensor '%s` not found.\n", sensor_name.c_str());
+    ERROR("Sensor '%s` not found.", sensor_name.c_str());
     return UHD_ERROR_NONE;
   }
 
@@ -430,13 +465,11 @@ static int wait_sensor_locked(rf_uhd_handler_t*  handler,
     // Get actual sensor value
     if (is_mboard) {
       if (handler->uhd->get_sensor(sensor_name, is_locked) != UHD_ERROR_NONE) {
-        print_usrp_error(handler);
-        return SRSLTE_ERROR;
+        return SRSRAN_ERROR;
       }
     } else {
       if (handler->uhd->get_rx_sensor(sensor_name, is_locked) != UHD_ERROR_NONE) {
-        print_usrp_error(handler);
-        return SRSLTE_ERROR;
+        return SRSRAN_ERROR;
       }
     }
 
@@ -445,7 +478,7 @@ static int wait_sensor_locked(rf_uhd_handler_t*  handler,
     timeout -= 1; // 1ms
   } while (not is_locked and timeout > 0);
 
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
 const char* rf_uhd_devname(void* h)
@@ -457,6 +490,7 @@ const char* rf_uhd_devname(void* h)
 bool rf_uhd_rx_wait_lo_locked(void* h)
 {
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
+  Debug("Waiting for Rx LO Locked");
 
   // wait for clock source to lock
   std::string sensor_name = "lo_locked";
@@ -465,30 +499,29 @@ bool rf_uhd_rx_wait_lo_locked(void* h)
   // blocks until sensor is blocked
   int error = wait_sensor_locked(handler, sensor_name, false, 300, is_locked);
 
-  if (not is_locked and error == SRSLTE_SUCCESS) {
-    ERROR("Could not lock reference clock source. Sensor: %s=%s\n", sensor_name.c_str(), is_locked ? "true" : "false");
+  if (not is_locked and error == SRSRAN_SUCCESS) {
+    ERROR("Could not lock reference clock source. Sensor: %s=%s", sensor_name.c_str(), is_locked ? "true" : "false");
   }
 
   return is_locked;
 }
 
-static inline int rf_uhd_start_rx_stream_unsafe(rf_uhd_handler_t* handler)
+static inline int rf_uhd_start_rx_stream_nolock(rf_uhd_handler_t* handler)
 {
   // Check if stream was not created or started
   if (not handler->uhd->is_rx_ready() or handler->rx_stream_enabled) {
     // Ignores command, the stream will start as soon as the Rx sampling rate is set
-    return SRSLTE_SUCCESS;
+    return SRSRAN_SUCCESS;
   }
 
   // Issue stream command
   if (handler->uhd->start_rx_stream(RF_UHD_IMP_STREAM_DELAY_S) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   handler->rx_stream_enabled = true;
 
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
 int rf_uhd_start_rx_stream(void* h, bool now)
@@ -496,26 +529,25 @@ int rf_uhd_start_rx_stream(void* h, bool now)
   rf_uhd_handler_t*            handler = (rf_uhd_handler_t*)h;
   std::unique_lock<std::mutex> lock(handler->rx_mutex);
 
-  return rf_uhd_start_rx_stream_unsafe(handler);
+  return rf_uhd_start_rx_stream_nolock(handler);
 }
 
-static inline int rf_uhd_stop_rx_stream_unsafe(rf_uhd_handler_t* handler)
+static inline int rf_uhd_stop_rx_stream_nolock(rf_uhd_handler_t* handler)
 {
   // Check if stream was created or stream was not started
   if (not handler->uhd->is_rx_ready() or not handler->rx_stream_enabled) {
     // Ignores command, the stream will start as soon as the Rx sampling rate is set
-    return SRSLTE_SUCCESS;
+    return SRSRAN_SUCCESS;
   }
 
   // Issue stream command
   if (handler->uhd->stop_rx_stream() != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   handler->rx_stream_enabled = false;
 
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
 int rf_uhd_stop_rx_stream(void* h)
@@ -523,7 +555,15 @@ int rf_uhd_stop_rx_stream(void* h)
   rf_uhd_handler_t*            handler = (rf_uhd_handler_t*)h;
   std::unique_lock<std::mutex> lock(handler->rx_mutex);
 
-  return rf_uhd_stop_rx_stream_unsafe(handler);
+  if (rf_uhd_stop_rx_stream_nolock(handler) < SRSRAN_SUCCESS) {
+    return SRSRAN_ERROR;
+  }
+
+  // Make sure the Rx stream is flushed
+  lock.unlock(); // Flush has its own lock
+  rf_uhd_flush_buffer(h);
+
+  return SRSRAN_SUCCESS;
 }
 
 void rf_uhd_flush_buffer(void* h)
@@ -531,19 +571,19 @@ void rf_uhd_flush_buffer(void* h)
   rf_uhd_handler_t*            handler = (rf_uhd_handler_t*)h;
   std::unique_lock<std::mutex> lock(handler->rx_mutex);
   size_t                       rxd_samples               = 0;
-  void*                        data[SRSLTE_MAX_CHANNELS] = {};
+  void*                        data[SRSRAN_MAX_CHANNELS] = {};
 
   // Set all pointers to zero buffer
   for (auto& i : data) {
-    i = zero_mem;
+    i = dummy_mem.data();
   }
 
   // Receive until time out
   uhd::rx_metadata_t md;
   do {
-    if (handler->uhd->receive(data, handler->rx_nof_samples, md, 0.0, false, rxd_samples) != UHD_ERROR_NONE) {
+    uint32_t nsamples = SRSRAN_MIN(handler->rx_nof_samples, (uint32_t)dummy_mem.size());
+    if (handler->uhd->receive(data, nsamples, md, 0.0, false, rxd_samples) != UHD_ERROR_NONE) {
       log_rx_error(handler);
-      print_usrp_error(handler);
       return;
     }
   } while (rxd_samples > 0 and md.error_code == uhd::rx_metadata_t::ERROR_CODE_NONE);
@@ -564,21 +604,8 @@ int rf_uhd_open(char* args, void** h)
   return rf_uhd_open_multi(args, h, 1);
 }
 
-int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
+static int uhd_init(rf_uhd_handler_t* handler, char* args, uint32_t nof_channels)
 {
-  // Check valid handler pointer
-  if (h == nullptr) {
-    return SRSLTE_ERROR_INVALID_INPUTS;
-  }
-
-  if (nof_channels > SRSLTE_MAX_CHANNELS) {
-    ERROR("Error opening UHD: maximum number of channels exceeded (%d>%d)\n", nof_channels, SRSLTE_MAX_CHANNELS);
-    return SRSLTE_ERROR;
-  }
-
-  rf_uhd_handler_t* handler = new rf_uhd_handler_t;
-  *h                        = handler;
-
   // Disable fast-path (U/L/O) messages
   setenv("UHD_LOG_FASTPATH_DISABLE", "1", 0);
 
@@ -602,6 +629,12 @@ int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
   std::string clock_src = "internal";
   if (device_addr.has_key("clock")) {
     clock_src = device_addr.pop("clock");
+  }
+
+  // Select same synchronization source only if more than one channel is opened
+  std::string sync_src = "internal";
+  if (nof_channels > 1) {
+    sync_src = clock_src;
   }
 
   // Logging level
@@ -680,6 +713,32 @@ int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
   }
   handler->current_master_clock = device_addr.cast("master_clock_rate", 0.0);
 
+  // Parse default frequencies
+  for (uint32_t i = 0; i < nof_channels; i++) {
+    // Parse Tx frequency
+    if (i == 0 and device_addr.has_key("tx_freq")) {
+      handler->tx_freq[i] = device_addr.cast("tx_freq", handler->tx_freq[i]);
+      device_addr.pop("tx_freq");
+    } else {
+      std::string key = "tx_freq" + std::to_string(i);
+      if (device_addr.has_key(key)) {
+        handler->tx_freq[i] = device_addr.cast(key, handler->tx_freq[i]);
+        device_addr.pop(key);
+      }
+    }
+
+    // Parse Rx frequency
+    if (i == 0 and device_addr.has_key("rx_freq")) {
+      handler->rx_freq[i] = device_addr.cast("rx_freq", handler->rx_freq[i]);
+    } else {
+      std::string key = "rx_freq" + std::to_string(i);
+      if (device_addr.has_key(key)) {
+        handler->rx_freq[i] = device_addr.cast("rx_freq" + std::to_string(i), handler->rx_freq[i]);
+        device_addr.pop(key);
+      }
+    }
+  }
+
   // Set dynamic master clock rate configuration
   if (device_addr.has_key("type")) {
     handler->dynamic_master_rate = RH_UHD_IMP_FIX_MASTER_CLOCK_RATE_DEVICE_LIST.count(device_addr["type"]) == 0;
@@ -709,9 +768,7 @@ int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
 
   // Make USRP
   if (handler->uhd->usrp_make(device_addr, nof_channels) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    uhd_free(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   // Set device internal name, it sets the device name to B200 by default
@@ -731,8 +788,7 @@ int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
   if (handler->devname.empty()) {
     std::string mboard_name;
     if (handler->uhd->get_mboard_name(mboard_name) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
 
     // Make upper case
@@ -755,9 +811,8 @@ int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
   std::string sensor_name;
 
   // Set sync source
-  if (handler->uhd->set_sync_source(clock_src) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+  if (handler->uhd->set_sync_source(sync_src, clock_src) != UHD_ERROR_NONE) {
+    return SRSRAN_ERROR;
   }
 
   if (clock_src == "gpsdo") {
@@ -772,7 +827,7 @@ int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
     // blocks until clock source is locked
     int error = wait_sensor_locked(handler, sensor_name, true, 300, is_locked);
     // Print Not lock error if the return was succesful, wait_sensor_locked prints the error before returning
-    if (not is_locked and error == SRSLTE_SUCCESS) {
+    if (not is_locked and error == SRSRAN_SUCCESS) {
       ERROR(
           "Could not lock reference clock source. Sensor: %s=%s\n", sensor_name.c_str(), is_locked ? "true" : "false");
     }
@@ -781,35 +836,51 @@ int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
   handler->nof_rx_channels = nof_channels;
   handler->nof_tx_channels = nof_channels;
 
+  // Set default Tx/Rx rates
   if (handler->uhd->set_rx_rate(handler->rx_rate) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
   if (handler->uhd->set_tx_rate(handler->tx_rate) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
+  // Reset timestamps
   if (nof_channels > 1 and clock_src != "gpsdo") {
     handler->uhd->set_time_unknown_pps(uhd::time_spec_t());
   }
 
   if (handler->uhd->get_rx_stream(handler->rx_nof_samples) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   if (handler->uhd->get_tx_stream(handler->tx_nof_samples) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
+  }
+
+  // Tune LOs if the default frequency is provided
+  bool require_wait_rx_lock = false;
+  for (uint32_t i = 0; i < nof_channels; i++) {
+    if (std::isnormal(handler->rx_freq[i])) {
+      if (handler->uhd->set_rx_freq(i, handler->rx_freq[i], handler->rx_freq[i]) != UHD_ERROR_NONE) {
+        return SRSRAN_ERROR;
+      }
+      rf_uhd_rx_wait_lo_locked(handler);
+      require_wait_rx_lock = true;
+    }
+  }
+  for (uint32_t i = 0; i < nof_channels; i++) {
+    if (std::isnormal(handler->tx_freq[i])) {
+      if (handler->uhd->set_tx_freq(i, handler->tx_freq[i], handler->tx_freq[i]) != UHD_ERROR_NONE) {
+        return SRSRAN_ERROR;
+      }
+    }
   }
 
   // Populate RF device info
   uhd::gain_range_t tx_gain_range;
   uhd::gain_range_t rx_gain_range;
   if (handler->uhd->get_gain_range(tx_gain_range, rx_gain_range) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
   handler->info.min_tx_gain = tx_gain_range.start();
   handler->info.max_tx_gain = tx_gain_range.stop();
@@ -829,17 +900,47 @@ int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
 
   // Restore priorities
   if (uhd_set_thread_priority(0, false) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
+}
+
+int rf_uhd_open_multi(char* args, void** h, uint32_t nof_channels)
+{
+  // Check valid handler pointer
+  if (h == nullptr) {
+    return SRSRAN_ERROR_INVALID_INPUTS;
+  }
+
+  if (nof_channels > SRSRAN_MAX_CHANNELS) {
+    ERROR("Error opening UHD: maximum number of channels exceeded (%d>%d)", nof_channels, SRSRAN_MAX_CHANNELS);
+    return SRSRAN_ERROR;
+  }
+
+  // Create UHD handler
+  rf_uhd_map[uhd_handler_counter] = std::make_shared<rf_uhd_handler_t>();
+  rf_uhd_handler_t* handler       = rf_uhd_map[uhd_handler_counter].get();
+  handler->id                     = uhd_handler_counter;
+  uhd_handler_counter++;
+  *h = handler;
+
+  // Initialise UHD handler
+  if (uhd_init(handler, args, nof_channels) < SRSRAN_SUCCESS) {
+    ERROR("uhd_init failed, freeing...");
+    // Free/Close UHD handler properly
+    uhd_free(handler);
+    *h = nullptr;
+    return SRSRAN_ERROR;
+  }
+
+  return SRSRAN_SUCCESS;
 }
 
 int rf_uhd_close(void* h)
 {
   // Makes sure Tx is ended
-  void* buff[SRSLTE_MAX_CHANNELS] = {};
+  void* buff[SRSRAN_MAX_CHANNELS] = {};
   rf_uhd_send_timed_multi(h, buff, 0, 0, 0, false, true, false, true);
 
   // Makes sure Rx stream is stopped
@@ -850,16 +951,14 @@ int rf_uhd_close(void* h)
   /// Free all UHD safe class
   uhd_free(handler);
 
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
-static inline void rf_uhd_set_master_clock_rate_unsafe(rf_uhd_handler_t* handler, double rate)
+static inline void rf_uhd_set_master_clock_rate_nolock(rf_uhd_handler_t* handler, double rate)
 {
   // Set master clock rate if it is allowed and change is required
-  if (handler->dynamic_master_rate && handler->current_master_clock != rate) {
-    if (handler->uhd->set_master_clock_rate(rate) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-    }
+  if (handler->dynamic_master_rate and handler->current_master_clock != rate) {
+    handler->uhd->set_master_clock_rate(rate);
     handler->current_master_clock = rate;
   }
 }
@@ -867,12 +966,12 @@ static inline void rf_uhd_set_master_clock_rate_unsafe(rf_uhd_handler_t* handler
 static inline int rf_uhd_imp_end_burst(rf_uhd_handler_t* handler)
 {
   uhd::tx_metadata_t md;
-  void*              buffs_ptr[SRSLTE_MAX_CHANNELS] = {};
+  void*              buffs_ptr[SRSRAN_MAX_CHANNELS] = {};
   size_t             txd_samples                    = 0;
 
   // Set buffer pointers
-  for (int i = 0; i < SRSLTE_MAX_CHANNELS; i++) {
-    buffs_ptr[i] = zero_mem;
+  for (int i = 0; i < SRSRAN_MAX_CHANNELS; i++) {
+    buffs_ptr[i] = zero_mem.data();
   }
 
   // Set metadata
@@ -882,14 +981,13 @@ static inline int rf_uhd_imp_end_burst(rf_uhd_handler_t* handler)
 
   // Actual base-band transmission
   if (handler->uhd->send(buffs_ptr, 0, md, RF_UHD_IMP_TRX_TIMEOUT_S, txd_samples) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
-  // Update TX state
-  handler->tx_state = RF_UHD_IMP_TX_STATE_START_BURST;
+  // Update TX state to wait for end of burst ACK
+  handler->tx_state = RF_UHD_IMP_TX_STATE_WAIT_EOB_ACK;
 
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
 double rf_uhd_set_rx_srate(void* h, double freq)
@@ -904,21 +1002,20 @@ double rf_uhd_set_rx_srate(void* h, double freq)
 
   // Stop RX streamer
   if (RF_UHD_IMP_PROHIBITED_STOP_START.count(handler->devname) == 0) {
-    if (rf_uhd_stop_rx_stream_unsafe(handler) != SRSLTE_SUCCESS) {
-      return SRSLTE_ERROR;
+    if (rf_uhd_stop_rx_stream_nolock(handler) != SRSRAN_SUCCESS) {
+      return SRSRAN_ERROR;
     }
   }
 
   // Set master clock rate
   if (fmod(handler->current_master_clock, freq) > 0.0) {
-    rf_uhd_set_master_clock_rate_unsafe(handler, 4 * freq);
+    rf_uhd_set_master_clock_rate_nolock(handler, 4 * freq);
   }
 
   if (handler->nof_rx_channels > 1) {
     uhd::time_spec_t timespec;
     if (handler->uhd->get_time_now(timespec) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
     timespec += RF_UHD_IMP_TIMED_COMMAND_DELAY_S;
     handler->uhd->set_command_time(timespec);
@@ -926,14 +1023,12 @@ double rf_uhd_set_rx_srate(void* h, double freq)
 
   // Set RX rate
   if (handler->uhd->set_rx_rate(freq) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   if (RF_UHD_IMP_PROHIBITED_STREAM_REMAKE.count(handler->devname) == 0) {
     if (handler->uhd->get_rx_stream(handler->rx_nof_samples) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
   }
 
@@ -945,11 +1040,12 @@ double rf_uhd_set_rx_srate(void* h, double freq)
 
 double rf_uhd_set_tx_srate(void* h, double freq)
 {
-  rf_uhd_handler_t*            handler = (rf_uhd_handler_t*)h;
-  std::unique_lock<std::mutex> lock(handler->tx_mutex);
+  rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
+  // Locking order should be kept the same with the async worker.
 #if HAVE_ASYNC_THREAD
   std::unique_lock<std::mutex> lock_async(handler->async_mutex);
 #endif /* HAVE_ASYNC_THREAD */
+  std::unique_lock<std::mutex> lock(handler->tx_mutex);
 
   // Early return if the current rate matches and Tx stream has been created
   if (freq == handler->tx_rate and handler->uhd->is_tx_ready()) {
@@ -958,21 +1054,20 @@ double rf_uhd_set_tx_srate(void* h, double freq)
 
   // End burst
   if (handler->uhd->is_tx_ready() and handler->tx_state != RF_UHD_IMP_TX_STATE_START_BURST) {
-    if (rf_uhd_imp_end_burst(handler) != SRSLTE_SUCCESS) {
-      return SRSLTE_ERROR;
+    if (rf_uhd_imp_end_burst(handler) != SRSRAN_SUCCESS) {
+      return SRSRAN_ERROR;
     }
   }
 
   // Set master clock rate
   if (fmod(handler->current_master_clock, freq) > 0.0) {
-    rf_uhd_set_master_clock_rate_unsafe(handler, 4 * freq);
+    rf_uhd_set_master_clock_rate_nolock(handler, 4 * freq);
   }
 
   if (handler->nof_tx_channels > 1) {
     uhd::time_spec_t timespec;
     if (handler->uhd->get_time_now(timespec) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
     timespec += RF_UHD_IMP_TIMED_COMMAND_DELAY_S;
     handler->uhd->set_command_time(timespec);
@@ -980,14 +1075,12 @@ double rf_uhd_set_tx_srate(void* h, double freq)
 
   // Set TX rate
   if (handler->uhd->set_tx_rate(freq) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   if (RF_UHD_IMP_PROHIBITED_STREAM_REMAKE.count(handler->devname) == 0) {
     if (handler->uhd->get_tx_stream(handler->tx_nof_samples) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
   }
 
@@ -1006,43 +1099,57 @@ int rf_uhd_set_rx_gain(void* h, double gain)
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
   for (size_t i = 0; i < handler->nof_rx_channels; i++) {
     if (rf_uhd_set_rx_gain_ch(h, i, gain)) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
   }
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
 int rf_uhd_set_rx_gain_ch(void* h, uint32_t ch, double gain)
 {
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
   if (handler->uhd->set_rx_gain(ch, gain) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
 int rf_uhd_set_tx_gain(void* h, double gain)
 {
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
   for (size_t i = 0; i < handler->nof_tx_channels; i++) {
-    if (rf_uhd_set_tx_gain_ch(h, i, gain)) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+    if (rf_uhd_set_tx_gain_ch(h, i, gain) < SRSRAN_SUCCESS) {
+      return SRSRAN_ERROR;
     }
   }
-  return SRSLTE_SUCCESS;
+  return SRSRAN_SUCCESS;
 }
 
 int rf_uhd_set_tx_gain_ch(void* h, uint32_t ch, double gain)
 {
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
-  if (handler->uhd->set_tx_gain(ch, gain) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+  if (ch >= SRSRAN_MAX_CHANNELS) {
+    return SRSRAN_ERROR;
   }
-  return SRSLTE_SUCCESS;
+
+  // If the transmitter is not in a burst, update the gain instantly
+  std::unique_lock<std::mutex> lock(handler->tx_gain_mutex);
+  if (handler->tx_state != RF_UHD_IMP_TX_STATE_BURST) {
+    // Set gain
+    if (handler->uhd->set_tx_gain(ch, gain) != UHD_ERROR_NONE) {
+      return SRSRAN_ERROR;
+    }
+
+    // Update current gains
+    handler->tx_gain_db[ch].second = gain;
+    handler->tx_gain_db[ch].first  = gain;
+    return SRSRAN_SUCCESS;
+  }
+
+  // Otherwise
+  handler->tx_gain_db[ch].first = gain;
+
+  return SRSRAN_SUCCESS;
 }
 
 double rf_uhd_get_rx_gain(void* h)
@@ -1051,8 +1158,7 @@ double rf_uhd_get_rx_gain(void* h)
   double            gain    = 0.0;
 
   if (handler->uhd->get_rx_gain(gain) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   return gain;
@@ -1064,16 +1170,15 @@ double rf_uhd_get_tx_gain(void* h)
   double            gain    = 0.0;
 
   if (handler->uhd->get_tx_gain(gain) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   return gain;
 }
 
-srslte_rf_info_t* rf_uhd_get_info(void* h)
+srsran_rf_info_t* rf_uhd_get_info(void* h)
 {
-  srslte_rf_info_t* info = nullptr;
+  srsran_rf_info_t* info = nullptr;
 
   if (h != nullptr) {
     rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
@@ -1082,44 +1187,57 @@ srslte_rf_info_t* rf_uhd_get_info(void* h)
 
   return info;
 }
+static bool rf_uhd_set_freq_ch(rf_uhd_handler_t* handler, uint32_t ch, double& freq, bool is_tx)
+{
+  double& curr_freq = (is_tx) ? handler->tx_freq[ch] : handler->rx_freq[ch];
+
+  // Skip if frequency is unchanged
+  if (round(freq) == round(curr_freq)) {
+    return false;
+  }
+
+  // Set frequency
+  if (is_tx) {
+    handler->uhd->set_tx_freq(ch, freq, curr_freq);
+  } else {
+    handler->uhd->set_rx_freq(ch, freq, curr_freq);
+  }
+  return true;
+}
 
 double rf_uhd_set_rx_freq(void* h, uint32_t ch, double freq)
 {
+  bool require_rx_wait_lo_locked = false;
+
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
   if (ch < handler->nof_rx_channels) {
-    if (handler->uhd->set_rx_freq(ch, freq, freq) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
-    }
+    require_rx_wait_lo_locked |= rf_uhd_set_freq_ch(handler, ch, freq, false);
   } else {
     for (uint32_t i = 0; i < handler->nof_rx_channels; i++) {
-      if (handler->uhd->set_rx_freq(i, freq, freq) != UHD_ERROR_NONE) {
-        print_usrp_error(handler);
-        return SRSLTE_ERROR;
-      }
+      require_rx_wait_lo_locked |= rf_uhd_set_freq_ch(handler, i, freq, false);
     }
   }
-  rf_uhd_rx_wait_lo_locked(handler);
-  return freq;
+
+  // wait for LO Locked
+  if (require_rx_wait_lo_locked) {
+    rf_uhd_rx_wait_lo_locked(handler);
+  }
+
+  return handler->rx_freq[ch % handler->nof_rx_channels];
 }
 
 double rf_uhd_set_tx_freq(void* h, uint32_t ch, double freq)
 {
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
   if (ch < handler->nof_tx_channels) {
-    if (handler->uhd->set_tx_freq(ch, freq, freq) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
-    }
+    rf_uhd_set_freq_ch(handler, ch, freq, true);
   } else {
     for (uint32_t i = 0; i < handler->nof_tx_channels; i++) {
-      if (handler->uhd->set_tx_freq(i, freq, freq) != UHD_ERROR_NONE) {
-        print_usrp_error(handler);
-        return SRSLTE_ERROR;
-      }
+      rf_uhd_set_freq_ch(handler, i, freq, true);
     }
   }
-  return freq;
+
+  return handler->tx_freq[ch % handler->nof_tx_channels];
 }
 
 void rf_uhd_get_time(void* h, time_t* secs, double* frac_secs)
@@ -1127,7 +1245,7 @@ void rf_uhd_get_time(void* h, time_t* secs, double* frac_secs)
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
   uhd::time_spec_t  timespec;
   if (handler->uhd->get_time_now(timespec) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
+    return;
   }
   if (secs != nullptr) {
     *secs = timespec.get_full_secs();
@@ -1146,9 +1264,7 @@ void rf_uhd_sync_pps(void* h)
 
   rf_uhd_handler_t* handler = (rf_uhd_handler_t*)h;
   uhd::time_spec_t  timespec(0.0);
-  if (handler->uhd->set_time_unknown_pps(timespec) != UHD_ERROR_NONE) {
-    print_usrp_error(handler);
-  }
+  handler->uhd->set_time_unknown_pps(timespec);
 }
 
 int rf_uhd_recv_with_time(void* h, void* data, uint32_t nsamples, bool blocking, time_t* secs, double* frac_secs)
@@ -1157,7 +1273,7 @@ int rf_uhd_recv_with_time(void* h, void* data, uint32_t nsamples, bool blocking,
 }
 
 int rf_uhd_recv_with_time_multi(void*    h,
-                                void*    data[SRSLTE_MAX_PORTS],
+                                void*    data[SRSRAN_MAX_PORTS],
                                 uint32_t nsamples,
                                 bool     blocking,
                                 time_t*  secs,
@@ -1168,38 +1284,43 @@ int rf_uhd_recv_with_time_multi(void*    h,
   size_t                       rxd_samples       = 0;
   size_t                       rxd_samples_total = 0;
   uint32_t                     trials            = 0;
-  int                          ret               = SRSLTE_ERROR;
+  int                          ret               = SRSRAN_ERROR;
   uhd::time_spec_t             timespec;
   uhd::rx_metadata_t           md;
 
   // Check Rx stream has been created
   if (not handler->uhd->is_rx_ready()) {
     // Ignores reception, the stream will start as soon as the Rx sampling rate is set
-    return SRSLTE_SUCCESS;
+    return SRSRAN_SUCCESS;
   }
 
   // Start stream if not started
   if (not handler->rx_stream_enabled) {
-    if (rf_uhd_start_rx_stream_unsafe(handler) != SRSLTE_SUCCESS) {
-      return SRSLTE_ERROR;
+    if (rf_uhd_start_rx_stream_nolock(handler) != SRSRAN_SUCCESS) {
+      return SRSRAN_ERROR;
     }
   }
 
   // Receive stream in multiple blocks
-  while (rxd_samples_total < nsamples && trials < RF_UHD_IMP_MAX_RX_TRIALS) {
-    void* buffs_ptr[SRSLTE_MAX_CHANNELS] = {};
-    for (uint32_t i = 0; i < handler->nof_rx_channels; i++) {
-      cf_t* data_c = (cf_t*)data[i];
-      buffs_ptr[i] = &data_c[rxd_samples_total];
-    }
+  while (rxd_samples_total < nsamples and trials < RF_UHD_IMP_MAX_RX_TRIALS) {
+    void* buffs_ptr[SRSRAN_MAX_CHANNELS] = {};
 
     size_t num_samps_left = nsamples - rxd_samples_total;
-    size_t num_rx_samples = (num_samps_left > handler->rx_nof_samples) ? handler->rx_nof_samples : num_samps_left;
+    size_t num_rx_samples = SRSRAN_MIN(handler->rx_nof_samples, num_samps_left);
+
+    for (uint32_t i = 0; i < handler->nof_rx_channels; i++) {
+      if (data[i] != nullptr) {
+        cf_t* data_c = (cf_t*)data[i];
+        buffs_ptr[i] = &data_c[rxd_samples_total];
+      } else {
+        buffs_ptr[i]   = dummy_mem.data();
+        num_rx_samples = SRSRAN_MIN(num_rx_samples, (uint32_t)dummy_mem.size());
+      }
+    }
 
     if (handler->uhd->receive(buffs_ptr, num_rx_samples, md, 1.0, false, rxd_samples) != UHD_ERROR_NONE) {
       log_rx_error(handler);
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+      return SRSRAN_ERROR;
     }
 
     // Save timespec for first block
@@ -1216,22 +1337,22 @@ int rf_uhd_recv_with_time_multi(void*    h,
     } else if (error_code == uhd::rx_metadata_t::ERROR_CODE_LATE_COMMAND) {
       log_late(handler, true);
     } else if (error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
-      ERROR("Error timed out while receiving samples from UHD.\n");
+      ERROR("Error timed out while receiving samples from UHD.");
 
       if (RF_UHD_IMP_PROHIBITED_STOP_START.count(handler->devname) == 0) {
         // Stop Rx stream
-        rf_uhd_stop_rx_stream_unsafe(handler);
+        rf_uhd_stop_rx_stream_nolock(handler);
       }
 
       return -1;
     } else if (error_code != uhd::rx_metadata_t::ERROR_CODE_NONE) {
-      ERROR("Error %s was returned during streaming. Aborting.\n", md.to_pp_string(true).c_str());
-      INFO("Error %s was returned during streaming. Aborting.\n", md.to_pp_string(true).c_str());
+      ERROR("Error %s was returned during streaming. Aborting.", md.to_pp_string(true).c_str());
+      INFO("Error %s was returned during streaming. Aborting.", md.to_pp_string(true).c_str());
     }
   }
 
   if (trials >= RF_UHD_IMP_MAX_RX_TRIALS) {
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
   ret = rxd_samples_total;
@@ -1256,7 +1377,7 @@ int rf_uhd_send_timed(void*  h,
                       bool   is_end_of_burst)
 {
   // Maximum number of channels to NULL
-  void* _data[SRSLTE_MAX_CHANNELS] = {};
+  void* _data[SRSRAN_MAX_CHANNELS] = {};
 
   // Set only first channel
   _data[0] = data;
@@ -1278,44 +1399,21 @@ int rf_uhd_send_timed_multi(void*  h,
   rf_uhd_handler_t*            handler = (rf_uhd_handler_t*)h;
   std::unique_lock<std::mutex> lock(handler->tx_mutex);
   uhd::tx_metadata_t           md;
-  void*                        buffs_ptr[SRSLTE_MAX_CHANNELS] = {};
-  size_t                       txd_samples                    = 0;
-  int                          n                              = 0;
+  void*                        buffs_ptr[SRSRAN_MAX_CHANNELS] = {};
+  int                          n                              = 0; //< Counts transmitted samples
 
   // Check Tx stream has been created
   if (not handler->uhd->is_tx_ready()) {
-    return SRSLTE_ERROR;
+    return SRSRAN_ERROR;
   }
 
-  // Run Underflow recovery state machine
-  switch (handler->tx_state) {
-    case RF_UHD_IMP_TX_STATE_BURST:
-      // Normal case, do nothing
-      break;
-    case RF_UHD_IMP_TX_STATE_END_OF_BURST:
-      // Send end of burst and ignore transmission
-      if (rf_uhd_imp_end_burst(handler) != SRSLTE_SUCCESS) {
-        return SRSLTE_ERROR;
-      }
-
-      // Flush receiver
-      rf_uhd_flush_buffer(h);
-
-      return SRSLTE_ERROR;
-    case RF_UHD_IMP_TX_STATE_START_BURST:
-      // Set tart of burst to false if recovering from the Underflow
-      is_start_of_burst = true;
-      handler->tx_state = RF_UHD_IMP_TX_STATE_BURST;
-      break;
-  }
-
+  // Set Tx timestamp
   if (not has_time_spec) {
     // If it the beginning of a burst, set timestamp
     if (is_start_of_burst) {
       // It gets the USRP time for transmissions without time
       if (handler->uhd->get_time_now(md.time_spec) != UHD_ERROR_NONE) {
-        print_usrp_error(handler);
-        return SRSLTE_ERROR;
+        return SRSRAN_ERROR;
       }
 
       // Add time to metadata
@@ -1327,12 +1425,36 @@ int rf_uhd_send_timed_multi(void*  h,
   }
 
   // Generate transmission buffer pointers
-  cf_t* data_c[SRSLTE_MAX_CHANNELS] = {};
-  for (uint32_t i = 0; i < SRSLTE_MAX_CHANNELS; i++) {
+  cf_t* data_c[SRSRAN_MAX_CHANNELS] = {};
+  for (uint32_t i = 0; i < SRSRAN_MAX_CHANNELS; i++) {
     if (i < handler->nof_tx_channels) {
-      data_c[i] = (data[i] != nullptr) ? (cf_t*)(data[i]) : zero_mem;
+      data_c[i] = (data[i] != nullptr) ? (cf_t*)(data[i]) : zero_mem.data();
     } else {
-      data_c[i] = zero_mem;
+      data_c[i] = zero_mem.data();
+    }
+  }
+
+  // Set RF Tx gains if a change is detected
+  {
+    std::unique_lock<std::mutex> tx_gain_lock(handler->tx_gain_mutex);
+    for (uint32_t i = 0; i < handler->nof_tx_channels; i++) {
+      // Skip if the gain remains unchanged
+      if (handler->tx_gain_db[i].first == handler->tx_gain_db[i].second) {
+        continue;
+      }
+
+      // Set the command to applied at the beginning of this transmission
+      if (handler->uhd->set_command_time(md.time_spec) != UHD_ERROR_NONE) {
+        return SRSRAN_ERROR;
+      }
+
+      // Send Tx gain request
+      if (handler->uhd->set_tx_gain(i, handler->tx_gain_db[i].first) != UHD_ERROR_NONE) {
+        return SRSRAN_ERROR;
+      }
+
+      // Update gain
+      handler->tx_gain_db[i].second = handler->tx_gain_db[i].first;
     }
   }
 
@@ -1340,13 +1462,42 @@ int rf_uhd_send_timed_multi(void*  h,
   do {
     size_t tx_samples = handler->tx_nof_samples;
 
-    // Set start of burst. Time spec only for the first packet in the burst
-    md.start_of_burst = is_start_of_burst;
-    // X300 devices work better if Timespec is sent at the start of the burst only
-    if (!handler->devname.compare(DEVNAME_X300)) {
-      md.has_time_spec = is_start_of_burst and has_time_spec;
+    // If an Underflow or a Late has been detected, end the burst immediately
+    if (handler->tx_state == RF_UHD_IMP_TX_STATE_END_OF_BURST) {
+      // Send end of burst and ignore transmission
+      if (rf_uhd_imp_end_burst(handler) != SRSRAN_SUCCESS) {
+        return SRSRAN_ERROR;
+      }
+
+      // Flush receiver only if allowed
+      if (RF_UHD_IMP_PROHIBITED_EOB_FLUSH.count(handler->devname) == 0) {
+        // Avoid holding the tx lock while in the rf_uhd_flush_buffer function to avoid potential deadlocks.
+        lock.unlock();
+        rf_uhd_flush_buffer(h);
+      }
+
+      return SRSRAN_ERROR;
+    }
+
+    // If the state is waiting for EOB ACK and the metadata of the current packet has passed the timeout, then start the
+    // burst
+    if (handler->tx_state == RF_UHD_IMP_TX_STATE_WAIT_EOB_ACK and md.time_spec >= handler->eob_ack_timeout) {
+      Info("Tx while waiting for EOB, timed out... " << md.time_spec.get_real_secs()
+                                                     << " >= " << handler->eob_ack_timeout.get_real_secs()
+                                                     << ". Starting new burst...");
+      handler->tx_state = RF_UHD_IMP_TX_STATE_START_BURST;
+    }
+
+    // Set start of burst, ignore function argument and set the flag based on the current Tx state
+    md.start_of_burst = (handler->tx_state == RF_UHD_IMP_TX_STATE_START_BURST);
+
+    // Time spec only for the first packet in the burst, some devices are not capable of handling like timestamps for
+    // each baseband packet
+    if (RF_UHD_IMP_TIMESPEC_AT_BURST_START_ONLY.count(handler->devname) == 0) {
+      md.has_time_spec = md.start_of_burst or has_time_spec;
     } else {
-      md.has_time_spec = is_start_of_burst or has_time_spec;
+      // only set time for start
+      md.has_time_spec = md.start_of_burst and has_time_spec;
     }
 
     // middle packets are never end of burst, last one as defined
@@ -1357,20 +1508,34 @@ int rf_uhd_send_timed_multi(void*  h,
       md.end_of_burst = is_end_of_burst;
     }
 
-    for (int i = 0; i < SRSLTE_MAX_CHANNELS; i++) {
+    // Update data pointers
+    for (int i = 0; i < SRSRAN_MAX_CHANNELS; i++) {
       void* buff   = (void*)&data_c[i][n];
       buffs_ptr[i] = buff;
     }
 
-    if (handler->uhd->send(buffs_ptr, tx_samples, md, RF_UHD_IMP_TRX_TIMEOUT_S, txd_samples) != UHD_ERROR_NONE) {
-      print_usrp_error(handler);
-      return SRSLTE_ERROR;
+    size_t txd_samples = tx_samples; //< Stores the number of transmitted samples in this packet
+
+    // Skip baseband packet transmission if it is waiting for the enb of burst ACK
+    if (handler->tx_state != RF_UHD_IMP_TX_STATE_WAIT_EOB_ACK) {
+      // Actual transmission
+      if (handler->uhd->send(buffs_ptr, tx_samples, md, RF_UHD_IMP_TRX_TIMEOUT_S, txd_samples) != UHD_ERROR_NONE) {
+        return SRSRAN_ERROR;
+      }
+
+      // Tx state is now in burst
+      if (md.start_of_burst) {
+        handler->tx_state = RF_UHD_IMP_TX_STATE_BURST;
+      }
+    } else {
+      Debug("Tx while waiting for EOB, aborting block... " << md.time_spec.get_real_secs() << " < "
+                                                           << handler->eob_ack_timeout.get_real_secs());
     }
 
-    // Next packets are not start of burst
-    is_start_of_burst = false;
+    // Increase the metadata transmit time
     md.time_spec += txd_samples / handler->tx_rate;
 
+    // Increase number of transmitted samples
     n += txd_samples;
   } while (n < nsamples);
 

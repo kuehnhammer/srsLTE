@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -31,11 +31,11 @@
 #include <stdint.h>
 #include <string>
 
-#include "srslte/interfaces/enb_metrics_interface.h"
+#include "srsran/interfaces/enb_metrics_interface.h"
 
 namespace srsenb {
 
-class metrics_stdout : public srslte::metrics_listener<enb_metrics_t>
+class metrics_stdout : public srsran::metrics_listener<enb_metrics_t>
 {
 public:
   metrics_stdout();
@@ -46,13 +46,13 @@ public:
   void stop(){};
 
 private:
+  void set_metrics_helper(uint32_t num_ue, const mac_metrics_t& mac, const std::vector<phy_metrics_t>& phy, bool is_nr);
   std::string float_to_string(float f, int digits, int field_width = 6);
-  std::string int_to_hex_string(int value, int field_width);
   std::string float_to_eng_string(float f, int digits);
 
-  bool                   do_print;
-  uint8_t                n_reports;
-  enb_metrics_interface* enb;
+  std::atomic<bool>      do_print  = {false};
+  uint8_t                n_reports = 0;
+  enb_metrics_interface* enb       = nullptr;
 };
 
 } // namespace srsenb

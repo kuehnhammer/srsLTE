@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -20,9 +20,7 @@
  */
 
 #include "backend_worker.h"
-#include "formatter.h"
-#include "srslte/srslog/sink.h"
-#include <cassert>
+#include "srsran/srslog/sink.h"
 
 using namespace srslog;
 
@@ -35,12 +33,48 @@ void backend_worker::stop()
   }
 }
 
-void backend_worker::create_worker()
+void backend_worker::set_thread_priority(backend_priority priority) const
+{
+  switch (priority) {
+    case backend_priority::normal:
+      break;
+    case backend_priority::high: {
+      int min = ::sched_get_priority_min(SCHED_FIFO);
+      if (min == -1) {
+        err_handler("Unable to set the backend thread priority to high, falling back to normal priority.");
+        return;
+      }
+      ::sched_param sch{min};
+      if (::pthread_setschedparam(::pthread_self(), SCHED_FIFO, &sch)) {
+        err_handler("Unable to set the backend thread priority to high, falling back to normal priority.");
+        return;
+      }
+      break;
+    }
+    case backend_priority::very_high: {
+      int max = ::sched_get_priority_max(SCHED_FIFO);
+      int min = ::sched_get_priority_min(SCHED_FIFO);
+      if (max == -1 || min == -1) {
+        err_handler("Unable to set the backend thread priority to real time, falling back to normal priority.");
+        return;
+      }
+      ::sched_param sch{min + ((max - min) / 2)};
+      if (::pthread_setschedparam(::pthread_self(), SCHED_FIFO, &sch)) {
+        err_handler("Unable to set the backend thread priority to real time, falling back to normal priority.");
+        return;
+      }
+      break;
+    }
+  }
+}
+
+void backend_worker::create_worker(backend_priority priority)
 {
   assert(!running_flag && "Only one worker thread should be created");
 
-  std::thread t([this]() {
+  std::thread t([this, priority]() {
     running_flag = true;
+    set_thread_priority(priority);
     do_work();
   });
 
@@ -52,21 +86,24 @@ void backend_worker::create_worker()
   }
 }
 
-void backend_worker::start()
+void backend_worker::start(backend_priority priority)
 {
   // Ensure we only create the worker thread once.
-  std::call_once(start_once_flag, [this]() { create_worker(); });
+  std::call_once(start_once_flag, [this, priority]() { create_worker(priority); });
 }
 
 void backend_worker::do_work()
 {
-  assert(running_flag && "Thread entry function called without running thread");
+  /// This period defines the time the worker will sleep while waiting for new entries. This is required to check the
+  /// termination variable periodically.
+  constexpr std::chrono::microseconds sleep_period{100};
 
   while (running_flag) {
-    auto item = queue.timed_pop(sleep_period_ms);
+    auto item = queue.try_pop();
 
-    // Spin again when the timeout expires.
+    // Spin while there are no new entries to process.
     if (!item.first) {
+      std::this_thread::sleep_for(sleep_period);
       continue;
     }
 
@@ -99,24 +136,27 @@ void backend_worker::process_log_entry(detail::log_entry&& entry)
     return;
   }
 
-  // Save sink pointer before moving the entry.
-  sink* s = entry.s;
+  assert(entry.format_func && "Invalid format function");
+  fmt_buffer.clear();
 
-  std::string result = format_log_entry_to_text(std::move(entry));
-  detail::memory_buffer buffer(result);
+  // Save the pointer before moving the entry.
+  auto* arg_store = entry.metadata.store;
 
-  if (auto err_str = s->write(buffer)) {
+  entry.format_func(std::move(entry.metadata), fmt_buffer);
+
+  arg_pool.dealloc(arg_store);
+
+  if (auto err_str = entry.s->write({fmt_buffer.data(), fmt_buffer.size()})) {
     err_handler(err_str.get_error());
   }
 }
 
 void backend_worker::process_outstanding_entries()
 {
-  assert(!running_flag &&
-         "Cannot process outstanding entries while thread is running");
+  assert(!running_flag && "Cannot process outstanding entries while thread is running");
 
   while (true) {
-    auto item = queue.timed_pop(1);
+    auto item = queue.try_pop();
 
     // Check if the queue is empty.
     if (!item.first) {

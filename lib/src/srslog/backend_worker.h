@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -22,9 +22,10 @@
 #ifndef SRSLOG_BACKEND_WORKER_H
 #define SRSLOG_BACKEND_WORKER_H
 
-#include "srslte/srslog/detail/log_entry.h"
-#include "srslte/srslog/detail/support/work_queue.h"
-#include "srslte/srslog/shared_types.h"
+#include "srsran/srslog/detail/log_entry.h"
+#include "srsran/srslog/detail/support/dyn_arg_store_pool.h"
+#include "srsran/srslog/detail/support/work_queue.h"
+#include "srsran/srslog/shared_types.h"
 #include <mutex>
 #include <thread>
 
@@ -34,14 +35,9 @@ namespace srslog {
 /// log entries from a work queue and dispatches them to the selected sinks.
 class backend_worker
 {
-  /// This period defines the maximum time the worker will sleep while waiting
-  /// for new entries. This is required to check the termination variable
-  /// periodically.
-  static constexpr unsigned sleep_period_ms = 500;
-
 public:
-  explicit backend_worker(detail::work_queue<detail::log_entry>& queue) :
-    queue(queue), running_flag(false)
+  backend_worker(detail::work_queue<detail::log_entry>& queue, detail::dyn_arg_store_pool& arg_pool) :
+    queue(queue), arg_pool(arg_pool), running_flag(false)
   {}
 
   backend_worker(const backend_worker&) = delete;
@@ -52,7 +48,7 @@ public:
   /// Starts the backend worker thread. After returning from this function the
   /// secondary thread is ensured to be running. Calling this function more than
   /// once has no effect.
-  void start();
+  void start(backend_priority priority);
 
   /// Stops the backend worker thread if it is running, otherwise the call has
   /// no effect. After returning from this function the secondary thread is
@@ -86,7 +82,7 @@ public:
 private:
   /// Creates the worker thread.
   /// NOTE: This function should be only called once.
-  void create_worker();
+  void create_worker(backend_priority priority);
 
   /// Entry function used by the secondary thread.
   void do_work();
@@ -103,23 +99,25 @@ private:
   void report_queue_on_full_once()
   {
     if (queue.is_almost_full()) {
-      err_handler(
-          fmt::format("The backend queue size is about to reach its maximum "
-                      "capacity of {} elements, new log entries will get "
-                      "discarded.\nConsider increasing the queue capacity.",
-                      queue.get_capacity()));
+      err_handler(fmt::format("The backend queue size is about to reach its maximum "
+                              "capacity of {} elements, new log entries will get "
+                              "discarded.\nConsider increasing the queue capacity.",
+                              queue.get_capacity()));
       err_handler = [](const std::string&) {};
     }
   }
 
+  /// Establishes the specified thread priority for the calling thread.
+  void set_thread_priority(backend_priority priority) const;
+
 private:
   detail::work_queue<detail::log_entry>& queue;
-  detail::shared_variable<bool> running_flag;
-  error_handler err_handler = [](const std::string& error) {
-    fmt::print(stderr, "srsLog error - {}\n", error);
-  };
-  std::once_flag start_once_flag;
-  std::thread worker_thread;
+  detail::dyn_arg_store_pool&            arg_pool;
+  detail::shared_variable<bool>          running_flag;
+  error_handler      err_handler = [](const std::string& error) { fmt::print(stderr, "srsLog error - {}\n", error); };
+  std::once_flag     start_once_flag;
+  std::thread        worker_thread;
+  fmt::memory_buffer fmt_buffer;
 };
 
 } // namespace srslog

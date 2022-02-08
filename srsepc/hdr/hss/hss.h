@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -28,12 +28,12 @@
 #ifndef SRSEPC_HSS_H
 #define SRSEPC_HSS_H
 
-#include "srslte/common/buffer_pool.h"
-#include "srslte/common/log.h"
-#include "srslte/common/log_filter.h"
-#include "srslte/interfaces/epc_interfaces.h"
+#include "srsran/common/buffer_pool.h"
+#include "srsran/common/standard_streams.h"
+#include "srsran/interfaces/epc_interfaces.h"
+#include "srsran/srslog/srslog.h"
 #include <cstddef>
-#include <fstream>
+
 #include <map>
 
 #define LTE_FDD_ENB_IND_HE_N_BITS 5
@@ -43,15 +43,15 @@
 
 namespace srsepc {
 
-typedef struct {
+struct hss_args_t {
   std::string db_file;
   uint16_t    mcc;
   uint16_t    mnc;
-} hss_args_t;
+};
 
 enum hss_auth_algo { HSS_ALGO_XOR, HSS_ALGO_MILENAGE };
 
-typedef struct {
+struct hss_ue_ctx_t {
   // Members
   std::string        name;
   uint64_t           imsi;
@@ -70,14 +70,14 @@ typedef struct {
   void set_sqn(const uint8_t* sqn_);
   void set_last_rand(const uint8_t* rand_);
   void get_last_rand(uint8_t* rand_);
-} hss_ue_ctx_t;
+};
 
 class hss : public hss_interface_nas
 {
 public:
   static hss* get_instance(void);
   static void cleanup(void);
-  int         init(hss_args_t* hss_args, srslte::log_filter* hss_log);
+  int         init(hss_args_t* hss_args);
   void        stop(void);
 
   virtual bool gen_auth_info_answer(uint64_t imsi, uint8_t* k_asme, uint8_t* autn, uint8_t* rand, uint8_t* xres);
@@ -103,7 +103,6 @@ private:
   void resync_sqn_milenage(hss_ue_ctx_t* ue_ctx, uint8_t* auts);
   void resync_sqn_xor(hss_ue_ctx_t* ue_ctx, uint8_t* auts);
 
-  std::vector<std::string> split_string(const std::string& str, char delimiter);
   void                     get_uint_vec_from_hex_str(const std::string& key_str, uint8_t* key, uint len);
 
   void increment_ue_sqn(hss_ue_ctx_t* ue_ctx);
@@ -120,7 +119,7 @@ private:
   std::string db_file;
 
   /*Logs*/
-  srslte::log_filter* m_hss_log;
+  srslog::basic_logger& m_logger = srslog::fetch_basic_logger("HSS");
 
   uint16_t mcc;
   uint16_t mnc;

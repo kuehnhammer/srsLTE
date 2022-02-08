@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -29,20 +29,20 @@
 
 #include <stdbool.h>
 
-#include "srslte/phy/sync/psss.h"
-#include "srslte/phy/sync/ssss.h"
-#include "srslte/srslte.h"
+#include "srsran/phy/sync/psss.h"
+#include "srsran/phy/sync/ssss.h"
+#include "srsran/srsran.h"
 
-char* input_file_name;
+char*          input_file_name;
 float          frequency_offset       = 0.0;
 float          snr                    = 100.0;
-srslte_cp_t    cp                     = SRSLTE_CP_NORM;
+srsran_cp_t    cp                     = SRSRAN_CP_NORM;
 uint32_t       nof_prb                = 6;
 bool           use_standard_lte_rates = false;
-srslte_sl_tm_t tm                     = SRSLTE_SIDELINK_TM2;
+srsran_sl_tm_t tm                     = SRSRAN_SIDELINK_TM2;
 uint32_t       max_subframes          = 10;
 
-srslte_filesource_t fsrc;
+srsran_filesource_t fsrc;
 
 void usage(char* prog)
 {
@@ -53,7 +53,7 @@ void usage(char* prog)
   printf("\t-m max_subframes [Default %d]\n", max_subframes);
   printf("\t-t Sidelink transmission mode {1,2,3,4} [Default %d]\n", (tm + 1));
   printf("\t-d use_standard_lte_rates [Default %i]\n", use_standard_lte_rates);
-  printf("\t-v srslte_verbose\n");
+  printf("\t-v srsran_verbose\n");
 }
 
 void parse_args(int argc, char** argv)
@@ -79,16 +79,16 @@ void parse_args(int argc, char** argv)
       case 't':
         switch (strtol(argv[optind], NULL, 10)) {
           case 1:
-            tm = SRSLTE_SIDELINK_TM1;
+            tm = SRSRAN_SIDELINK_TM1;
             break;
           case 2:
-            tm = SRSLTE_SIDELINK_TM2;
+            tm = SRSRAN_SIDELINK_TM2;
             break;
           case 3:
-            tm = SRSLTE_SIDELINK_TM3;
+            tm = SRSRAN_SIDELINK_TM3;
             break;
           case 4:
-            tm = SRSLTE_SIDELINK_TM4;
+            tm = SRSRAN_SIDELINK_TM4;
             break;
           default:
             usage(argv[0]);
@@ -96,7 +96,7 @@ void parse_args(int argc, char** argv)
         }
         break;
       case 'v':
-        srslte_verbose++;
+        increase_srsran_verbose_level();
         break;
       default:
         usage(argv[0]);
@@ -107,27 +107,41 @@ void parse_args(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
+  int ret = SRSRAN_ERROR;
   parse_args(argc, argv);
-  srslte_use_standard_symbol_size(use_standard_lte_rates);
+  srsran_use_standard_symbol_size(use_standard_lte_rates);
 
-  if (!input_file_name || srslte_filesource_init(&fsrc, input_file_name, SRSLTE_COMPLEX_FLOAT_BIN)) {
-    printf("Error opening file %s\n", input_file_name);
-    return SRSLTE_ERROR;
+  // Init buffers
+  cf_t* input_buffer      = NULL;
+  cf_t* input_buffer_temp = NULL;
+  cf_t* sf_buffer         = NULL;
+
+  // Init PSSS
+  srsran_psss_t psss = {};
+  if (srsran_psss_init(&psss, nof_prb, cp) < SRSRAN_SUCCESS) {
+    ERROR("Error initialising the PSSS");
+    goto clean_exit;
   }
 
-  // alloc memory
-  uint32_t sf_n_samples = SRSLTE_SF_LEN_PRB(nof_prb);
+  if (!input_file_name || srsran_filesource_init(&fsrc, input_file_name, SRSRAN_COMPLEX_FLOAT_BIN)) {
+    printf("Error opening file %s\n", input_file_name);
+    goto clean_exit;
+  }
+
+  // Allocate memory
+  uint32_t sf_n_samples = SRSRAN_SF_LEN_PRB(nof_prb);
   printf("I/Q samples per subframe=%d\n", sf_n_samples);
 
-  uint32_t sf_n_re   = SRSLTE_CP_NSYMB(SRSLTE_CP_NORM) * SRSLTE_NRE * 2 * nof_prb;
-  cf_t*    sf_buffer = srslte_vec_cf_malloc(sf_n_re);
+  uint32_t sf_n_re = SRSRAN_CP_NSYMB(SRSRAN_CP_NORM) * SRSRAN_NRE * 2 * nof_prb;
+  sf_buffer        = srsran_vec_cf_malloc(sf_n_re);
 
-  cf_t* input_buffer      = srslte_vec_cf_malloc(sf_n_samples);
-  cf_t* input_buffer_temp = srslte_vec_cf_malloc(sf_n_samples);
+  input_buffer      = srsran_vec_cf_malloc(sf_n_samples);
+  input_buffer_temp = srsran_vec_cf_malloc(sf_n_samples);
 
-  // init PSSS
-  srslte_psss_t psss = {};
-  srslte_psss_init(&psss, nof_prb, cp);
+  if (input_buffer == NULL || input_buffer_temp == NULL || sf_buffer == NULL) {
+    ERROR("Error allocating buffers");
+    goto clean_exit;
+  }
 
   struct timeval t[3];
   gettimeofday(&t[1], NULL);
@@ -138,17 +152,17 @@ int main(int argc, char** argv)
 
   do {
     // Read and normalize samples from file
-    samples_read = srslte_filesource_read(&fsrc, input_buffer, sf_n_samples);
+    samples_read = srsran_filesource_read(&fsrc, input_buffer, sf_n_samples);
     if (samples_read == 0) {
       // read entire file
       break;
     } else if (samples_read != sf_n_samples) {
       printf("Could only read %d of %d requested samples\n", samples_read, sf_n_samples);
-      return SRSLTE_ERROR;
+      goto clean_exit;
     }
 
     // Find PSSS signal
-    if (srslte_psss_find(&psss, input_buffer, nof_prb, cp) == SRSLTE_SUCCESS) {
+    if (srsran_psss_find(&psss, input_buffer, nof_prb, cp) == SRSRAN_SUCCESS) {
       printf("PSSS correlation peak pos: %d value: %f N_id_2: %d\n",
              psss.corr_peak_pos,
              psss.corr_peak_value,
@@ -158,11 +172,21 @@ int main(int argc, char** argv)
     num_subframes++;
   } while (samples_read == sf_n_samples && num_subframes < max_subframes);
 
-  srslte_filesource_free(&fsrc);
-  srslte_psss_free(&psss);
-  free(input_buffer);
-  free(input_buffer_temp);
-  free(sf_buffer);
+  ret = (sync == SRSRAN_SUCCESS);
 
-  return (sync == SRSLTE_SUCCESS);
+clean_exit:
+  srsran_filesource_free(&fsrc);
+  srsran_psss_free(&psss);
+
+  if (input_buffer != NULL) {
+    free(input_buffer);
+  }
+  if (input_buffer_temp != NULL) {
+    free(input_buffer_temp);
+  }
+  if (sf_buffer != NULL) {
+    free(sf_buffer);
+  }
+
+  return ret;
 }

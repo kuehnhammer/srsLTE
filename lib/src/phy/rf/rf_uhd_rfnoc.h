@@ -1,14 +1,14 @@
-/*
- * Copyright 2013-2020 Software Radio Systems Limited
+/**
+ * Copyright 2013-2021 Software Radio Systems Limited
  *
- * This file is part of srsLTE.
+ * This file is part of srsRAN.
  *
- * srsLTE is free software: you can redistribute it and/or modify
+ * srsRAN is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as
  * published by the Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
  *
- * srsLTE is distributed in the hope that it will be useful,
+ * srsRAN is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
@@ -19,8 +19,8 @@
  *
  */
 
-#ifndef SRSLTE_RF_UHD_RFNOC_H
-#define SRSLTE_RF_UHD_RFNOC_H
+#ifndef SRSRAN_RF_UHD_RFNOC_H
+#define SRSRAN_RF_UHD_RFNOC_H
 
 #include <chrono>
 #include <complex>
@@ -108,24 +108,24 @@ private:
     // Destroy any previous USRP instance
     device3 = nullptr;
 
-    UHD_SAFE_C_SAVE_ERROR(this, device3 = uhd::device3::make(dev_addr);)
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(device3 = uhd::device3::make(dev_addr);)
   }
 
   template <class T>
   uhd_error parse_param(uhd::device_addr_t& args, const std::string& param, T& value, bool pop = true)
   {
-    UHD_SAFE_C_SAVE_ERROR(this,
-                          // Check if parameter exists
-                          if (not args.has_key(param)) {
-                            last_error = "RF-NOC requires " + param + " parameter";
-                            return UHD_ERROR_KEY;
-                          }
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
+        // Check if parameter exists
+        if (not args.has_key(param)) {
+          Error("RF-NOC requires " + param + " parameter");
+          return UHD_ERROR_KEY;
+        }
 
-                          // Parse parameter
-                          value = args.cast(param, value);
+        // Parse parameter
+        value = args.cast(param, value);
 
-                          // Remove parameter from list
-                          if (pop) args.pop(param);)
+        // Remove parameter from list
+        if (pop) args.pop(param);)
   }
 
   uhd_error parse_args(uhd::device_addr_t& args)
@@ -143,14 +143,14 @@ private:
     // Parse number of radios
     parse_param(args, "rfnoc_nof_radios", nof_radios);
     if (nof_radios == 0) {
-      last_error = "RF-NOC Number of radios cannot be zero";
+      Error("RF-NOC Number of radios cannot be zero");
       return UHD_ERROR_KEY;
     }
 
     // Parse number of channels per radio
     parse_param(args, "rfnoc_nof_channels", nof_channels);
     if (nof_channels == 0) {
-      last_error = "RF-NOC Number of channels cannot be zero";
+      Error("RF-NOC Number of channels cannot be zero");
       return UHD_ERROR_KEY;
     }
 
@@ -166,8 +166,7 @@ private:
 
   uhd_error create_control_interfaces()
   {
-    UHD_SAFE_C_SAVE_ERROR(
-        this,
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
         // Create Radio control
         if (not loopback) {
           radio_ctrl.resize(nof_radios);
@@ -236,7 +235,6 @@ private:
           }
 
           for (size_t j = 0; j < nof_channels; j++) {
-
             uhd::device_addr_t args;
             args.set("input_rate", std::to_string(master_clock_rate));
             args.set("fullscale", "1.0");
@@ -271,7 +269,6 @@ private:
           }
 
           for (size_t j = 0; j < nof_channels; j++) {
-
             uhd::device_addr_t args;
             args.set("output_rate", std::to_string(master_clock_rate));
             args.set("fullscale", "1.0");
@@ -326,9 +323,7 @@ private:
       nof_samples_per_packet = spp * 4 + 2 * sizeof(uint64_t);
     }
 
-    UHD_SAFE_C_SAVE_ERROR(
-        this,
-
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
         // Get Tx and Rx Graph
         graph = device3->create_graph("graph");
 
@@ -368,9 +363,7 @@ private:
       nof_samples_per_packet = spp * 4 + 2 * sizeof(uint64_t);
     }
 
-    UHD_SAFE_C_SAVE_ERROR(
-        this,
-
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
         // Get Tx and Rx Graph
         graph = device3->create_graph("graph");
 
@@ -399,6 +392,7 @@ private:
   }
 
 public:
+  virtual ~rf_uhd_rfnoc() = default;
   static bool is_required(const uhd::device_addr_t& device_addr)
   {
     const std::vector<std::string> keys = device_addr.keys();
@@ -425,10 +419,10 @@ public:
 
     // Check number of channels
     if (nof_channels_ % nof_channels != 0 or nof_channels_ / nof_channels > nof_radios) {
-      last_error = "Number of requested channels (" + std::to_string(nof_channels_) +
-                   ") is different than the RFNOC "
-                   "available channels (" +
-                   std::to_string(nof_radios * nof_channels) + ")";
+      Error("Number of requested channels (" + std::to_string(nof_channels_) +
+            ") is different than the RFNOC "
+            "available channels (" +
+            std::to_string(nof_radios * nof_channels) + ")");
       return UHD_ERROR_VALUE;
     }
 
@@ -470,56 +464,53 @@ public:
   };
   uhd_error get_mboard_sensor_names(std::vector<std::string>& sensors) override
   {
-    UHD_SAFE_C_SAVE_ERROR(this, if (device3->get_tree()->exists(TREE_MBOARD_SENSORS)) {
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(if (device3->get_tree()->exists(TREE_MBOARD_SENSORS)) {
       sensors = device3->get_tree()->list(TREE_MBOARD_SENSORS);
     })
   }
   uhd_error get_rx_sensor_names(std::vector<std::string>& sensors) override
   {
-    UHD_SAFE_C_SAVE_ERROR(this, if (device3->get_tree()->exists(TREE_RX_SENSORS)) {
-      sensors = device3->get_tree()->list(TREE_RX_SENSORS);
-    })
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
+        if (device3->get_tree()->exists(TREE_RX_SENSORS)) { sensors = device3->get_tree()->list(TREE_RX_SENSORS); })
   }
   uhd_error get_sensor(const std::string& sensor_name, double& sensor_value) override
   {
-    UHD_SAFE_C_SAVE_ERROR(
-        this,
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
         sensor_value =
             device3->get_tree()->access<uhd::sensor_value_t>(TREE_MBOARD_SENSORS / sensor_name).get().to_real();)
   }
   uhd_error get_sensor(const std::string& sensor_name, bool& sensor_value) override
   {
-    UHD_SAFE_C_SAVE_ERROR(
-        this,
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
         sensor_value =
             device3->get_tree()->access<uhd::sensor_value_t>(TREE_MBOARD_SENSORS / sensor_name).get().to_bool();)
   }
   uhd_error get_rx_sensor(const std::string& sensor_name, bool& sensor_value) override
   {
-    UHD_SAFE_C_SAVE_ERROR(
-        this,
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
         sensor_value = device3->get_tree()->access<uhd::sensor_value_t>(TREE_RX_SENSORS / sensor_name).get().to_bool();)
   }
   uhd_error set_time_unknown_pps(const uhd::time_spec_t& timespec) override
   {
     Info("Setting time " << timespec.get_real_secs() << " at next PPS...");
-    UHD_SAFE_C_SAVE_ERROR(this, for (auto& r : radio_ctrl) { r->set_time_next_pps(timespec); });
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(for (auto& r : radio_ctrl) { r->set_time_next_pps(timespec); });
   }
   uhd_error get_time_now(uhd::time_spec_t& timespec) override
   {
-    UHD_SAFE_C_SAVE_ERROR(this, timespec = device3->get_tree()->access<uhd::time_spec_t>(TREE_TIME_NOW).get();
-                          Info("-- " << timespec.get_real_secs());)
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(timespec = device3->get_tree()->access<uhd::time_spec_t>(TREE_TIME_NOW).get();
+                                Info("-- " << timespec.get_real_secs());)
   }
-  uhd_error set_sync_source(const std::string& source) override
+  uhd_error set_sync_source(const std::string& sync_source, const std::string& clock_source) override
   {
     if (loopback) {
       return UHD_ERROR_NONE;
     }
 
-    UHD_SAFE_C_SAVE_ERROR(this, for (size_t radio_idx = 0; radio_idx < nof_radios; radio_idx++) {
-      UHD_LOG_DEBUG(radio_id[radio_idx], "Setting sync source to " << source);
-      radio_ctrl[radio_idx]->set_clock_source(source);
-      radio_ctrl[radio_idx]->set_time_source(source);
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(for (size_t radio_idx = 0; radio_idx < nof_radios; radio_idx++) {
+      UHD_LOG_DEBUG(radio_id[radio_idx],
+                    "Setting PPS source to '" << sync_source << "' and clock source to '" << clock_source << "'");
+      radio_ctrl[radio_idx]->set_clock_source(clock_source);
+      radio_ctrl[radio_idx]->set_time_source(sync_source);
     })
   }
   uhd_error get_gain_range(uhd::gain_range_t& tx_gain_range, uhd::gain_range_t& rx_gain_range) override
@@ -532,7 +523,7 @@ public:
   uhd_error set_master_clock_rate(double rate) override { return UHD_ERROR_NONE; }
   uhd_error set_rx_rate(double rate) override
   {
-    UHD_SAFE_C_SAVE_ERROR(this, for (size_t i = 0; i < nof_radios; i++) {
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(for (size_t i = 0; i < nof_radios; i++) {
       for (size_t j = 0; j < nof_channels; j++) {
         UHD_LOG_DEBUG(ddc_id[i], "Setting channel " << j << " output rate to " << rate / 1e6 << " MHz");
         ddc_ctrl[i]->set_arg("output_rate", std::to_string(rate), j);
@@ -541,7 +532,7 @@ public:
   }
   uhd_error set_tx_rate(double rate) override
   {
-    UHD_SAFE_C_SAVE_ERROR(this, for (size_t i = 0; i < nof_radios; i++) {
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(for (size_t i = 0; i < nof_radios; i++) {
       for (size_t j = 0; j < nof_channels; j++) {
         UHD_LOG_DEBUG(duc_id[i], "Setting channel " << j << " input rate to " << rate / 1e6 << " MHz");
         duc_ctrl[i]->set_arg("input_rate", std::to_string(rate), j);
@@ -551,8 +542,8 @@ public:
   uhd_error set_command_time(const uhd::time_spec_t& timespec) override { return UHD_ERROR_NONE; }
   uhd_error get_rx_stream(size_t& max_num_samps) override
   {
-    UHD_SAFE_C_SAVE_ERROR(
-        this, uhd::stream_args_t stream_args("fc32", "sc16");
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
+        uhd::stream_args_t stream_args("fc32", "sc16");
 
         stream_args.channels.resize(nof_radios * nof_channels);
 
@@ -576,8 +567,8 @@ public:
   }
   uhd_error get_tx_stream(size_t& max_num_samps) override
   {
-    UHD_SAFE_C_SAVE_ERROR(
-        this, uhd::stream_args_t stream_args("fc32", "sc16");
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
+        uhd::stream_args_t stream_args("fc32", "sc16");
 
         stream_args.channels.resize(nof_radios * nof_channels);
         if (spp != 0) { stream_args.args["spp"] = std::to_string(spp); }
@@ -606,7 +597,7 @@ public:
   uhd_error set_tx_gain(size_t ch, double gain) override
   {
     if (ch >= nof_channels * nof_radios) {
-      last_error = "Invalid channel index " + std::to_string(ch);
+      Error("Invalid channel index " + std::to_string(ch));
       return UHD_ERROR_INDEX;
     }
 
@@ -619,12 +610,11 @@ public:
 
     // Set the gain for the channel zero only
     if (channel_idx != 0) {
-      last_error = "None";
       return UHD_ERROR_NONE;
     }
 
-    UHD_SAFE_C_SAVE_ERROR(
-        this, UHD_LOG_DEBUG(radio_id[radio_idx], "Setting TX Gain: " << gain << " dB...");
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
+        UHD_LOG_DEBUG(radio_id[radio_idx], "Setting TX Gain: " << gain << " dB...");
         radio_ctrl[radio_idx]->set_tx_gain(gain, 0);
         UHD_LOG_DEBUG(radio_id[radio_idx], "Actual TX Gain: " << radio_ctrl[radio_idx]->get_rx_gain(0) << " dB...");)
   }
@@ -632,7 +622,7 @@ public:
   uhd_error set_rx_gain(size_t ch, double gain) override
   {
     if (ch >= nof_channels * nof_radios) {
-      last_error = "Invalid channel index " + std::to_string(ch);
+      Error("Invalid channel index " + std::to_string(ch));
       return UHD_ERROR_INDEX;
     }
 
@@ -645,12 +635,11 @@ public:
 
     // Set the gain for the channel zero only
     if (channel_idx != 0) {
-      last_error = "None";
       return UHD_ERROR_NONE;
     }
 
-    UHD_SAFE_C_SAVE_ERROR(
-        this, UHD_LOG_DEBUG(radio_id[radio_idx], "Setting RX Gain: " << gain << " dB...");
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
+        UHD_LOG_DEBUG(radio_id[radio_idx], "Setting RX Gain: " << gain << " dB...");
         radio_ctrl[radio_idx]->set_rx_gain(gain, 0);
         UHD_LOG_DEBUG(radio_id[radio_idx], "Actual RX Gain: " << radio_ctrl[radio_idx]->get_rx_gain(0) << " dB...");)
   }
@@ -660,32 +649,30 @@ public:
       return UHD_ERROR_NONE;
     }
 
-    UHD_SAFE_C_SAVE_ERROR(this, gain = radio_ctrl[0]->get_tx_gain(0);)
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(gain = radio_ctrl[0]->get_tx_gain(0);)
   }
   uhd_error get_rx_gain(double& gain) override
   {
-
     if (radio_ctrl.size() == 0) {
       return UHD_ERROR_NONE;
     }
 
-    UHD_SAFE_C_SAVE_ERROR(this, gain = radio_ctrl[0]->get_rx_gain(0);)
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(gain = radio_ctrl[0]->get_rx_gain(0);)
   }
   uhd_error set_tx_freq(uint32_t ch, double target_freq, double& actual_freq) override
   {
     if (ch >= tx_freq_hz.size()) {
-      last_error = "Invalid channel index " + std::to_string(ch);
+      Error("Invalid channel index " + std::to_string(ch));
       return UHD_ERROR_INDEX;
     }
 
     if (not std::isnormal(target_freq)) {
-      last_error = "Invalid TX frequency value " + std::to_string(target_freq) + " for channel " + std::to_string(ch);
+      Error("Invalid TX frequency value " + std::to_string(target_freq) + " for channel " + std::to_string(ch));
       return UHD_ERROR_VALUE;
     }
 
     // Nothing to update
     if (std::round(tx_freq_hz[ch]) == std::round(target_freq)) {
-      last_error = "None";
       return UHD_ERROR_NONE;
     }
 
@@ -697,9 +684,7 @@ public:
     size_t i = ch / nof_channels;
     size_t j = ch % nof_channels;
 
-    UHD_SAFE_C_SAVE_ERROR(
-        this,
-
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
         // Set Radio Tx freq
         if (not std::isnormal(tx_center_freq_hz[i]) and not loopback) {
           UHD_LOG_DEBUG(radio_id[i],
@@ -724,18 +709,17 @@ public:
   uhd_error set_rx_freq(uint32_t ch, double target_freq, double& actual_freq) override
   {
     if (ch >= rx_freq_hz.size()) {
-      last_error = "Invalid channel index " + std::to_string(ch);
+      Error("Invalid channel index " + std::to_string(ch));
       return UHD_ERROR_INDEX;
     }
 
     if (not std::isnormal(target_freq)) {
-      last_error = "Invalid TX frequency value " + std::to_string(target_freq) + " for channel " + std::to_string(ch);
+      Error("Invalid TX frequency value " + std::to_string(target_freq) + " for channel " + std::to_string(ch));
       return UHD_ERROR_VALUE;
     }
 
     // Nothing to update
     if (std::round(rx_freq_hz[ch]) == std::round(target_freq)) {
-      last_error = "None";
       return UHD_ERROR_NONE;
     }
 
@@ -747,9 +731,7 @@ public:
     size_t i = ch / nof_channels;
     size_t j = ch % nof_channels;
 
-    UHD_SAFE_C_SAVE_ERROR(
-        this,
-
+    SRSRAN_UHD_SAFE_C_LOG_ERROR(
         // Set Radio Tx freq
         if (not std::isnormal(rx_center_freq_hz[i]) and not loopback) {
           UHD_LOG_DEBUG(radio_id[i], "Setting RX Freq: " << target_freq / 1e6 << " MHz...");
@@ -769,4 +751,4 @@ public:
   }
 };
 
-#endif // SRSLTE_RF_UHD_RFNOC_H
+#endif // SRSRAN_RF_UHD_RFNOC_H
