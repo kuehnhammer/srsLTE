@@ -82,6 +82,7 @@ extern "C" {
 
 typedef enum { SRSRAN_CP_NORM = 0, SRSRAN_CP_EXT } srsran_cp_t;
 typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
+typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_1KHZ25  } srsran_scs_t;
 
 #define SRSRAN_INVALID_RNTI 0x0 // TS 36.321 - Table 7.1-1 RNTI 0x0 isn't a valid DL RNTI
 #define SRSRAN_CRNTI_START 0x000B
@@ -89,6 +90,7 @@ typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
 #define SRSRAN_RARNTI_START 0x0001
 #define SRSRAN_RARNTI_END 0x000A
 #define SRSRAN_SIRNTI 0xFFFF
+#define SRSRAN_SIRNTI_MBMS_DEDICATED 0xFFF9
 #define SRSRAN_PRNTI 0xFFFE
 #define SRSRAN_MRNTI 0xFFFD
 
@@ -105,6 +107,10 @@ typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
 
 #define SRSRAN_MAX_PRB 110
 #define SRSRAN_NRE 12
+#define SRSRAN_NRE_SCS_7KHZ5 24
+#define SRSRAN_NRE_SCS_1KHZ25 144
+#define SRSRAN_NRE_SCS(scs) (scs == SRSRAN_SCS_15KHZ ? SRSRAN_NRE : (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_NRE_SCS_7KHZ5 : SRSRAN_NRE_SCS_1KHZ25))
+
 
 #define SRSRAN_SYMBOL_SZ_MAX 2048
 
@@ -118,6 +124,14 @@ typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
 #define SRSRAN_CP_EXT_LEN 512
 #define SRSRAN_CP_EXT_7_5_LEN 1024
 
+#define SRSRAN_CP_SCS_7KHZ5_NSYMB  3
+#define SRSRAN_CP_SCS_1KHZ25_NSYMB 1
+#define SRSRAN_CP_MBSFN_LEN(scs) (scs == SRSRAN_SCS_1KHZ25 ? 6144 : (scs == SRSRAN_SCS_7KHZ5 ? 1024 : SRSRAN_CP_EXT_LEN))
+
+#define SRSRAN_MBSFN_NOF_SLOTS(scs) (scs == SRSRAN_SCS_1KHZ25 ? 1 : 2)
+#define SRSRAN_MBSFN_NOF_SYMBOLS(scs) (scs == SRSRAN_SCS_1KHZ25 ? SRSRAN_CP_SCS_1KHZ25_NSYMB : (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_CP_SCS_7KHZ5_NSYMB : SRSRAN_CP_EXT_NSYMB ))
+
+
 #define SRSRAN_CP_ISNORM(cp) (cp == SRSRAN_CP_NORM)
 #define SRSRAN_CP_ISEXT(cp) (cp == SRSRAN_CP_EXT)
 #define SRSRAN_CP_NSYMB(cp) (SRSRAN_CP_ISNORM(cp) ? SRSRAN_CP_NORM_NSYMB : SRSRAN_CP_EXT_NSYMB)
@@ -126,6 +140,8 @@ typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
 #define SRSRAN_CP_LEN_NORM(symbol, symbol_sz)                                                                          \
   (((symbol) == 0) ? SRSRAN_CP_LEN((symbol_sz), SRSRAN_CP_NORM_0_LEN) : SRSRAN_CP_LEN((symbol_sz), SRSRAN_CP_NORM_LEN))
 #define SRSRAN_CP_LEN_EXT(symbol_sz) (SRSRAN_CP_LEN((symbol_sz), SRSRAN_CP_EXT_LEN))
+#define SRSRAN_CP_LEN_MBSFN_SCS(symbol_sz, scs) (SRSRAN_CP_LEN((symbol_sz), SRSRAN_CP_MBSFN_LEN(scs)))
+
 
 #define SRSRAN_CP_SZ(symbol_sz, cp)                                                                                    \
   (SRSRAN_CP_LEN(symbol_sz, (SRSRAN_CP_ISNORM(cp) ? SRSRAN_CP_NORM_LEN : SRSRAN_CP_EXT_LEN)))
@@ -152,6 +168,7 @@ typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
 #define SRSRAN_SLOT_IDX_CPEXT(idx, symbol_sz) (idx * (symbol_sz + SRSRAN_CP(symbol_sz, SRSRAN_CP_EXT_LEN)))
 
 #define SRSRAN_RE_IDX(nof_prb, symbol_idx, sample_idx) ((symbol_idx) * (nof_prb) * (SRSRAN_NRE) + sample_idx)
+#define SRSRAN_RE_IDX_MBSFN(nof_prb, symbol_idx, sample_idx, scs) ((symbol_idx) * (nof_prb) * (SRSRAN_NRE_SCS(scs)) + sample_idx)
 
 #define SRSRAN_RS_VSHIFT(cell_id) (cell_id % 6)
 
@@ -162,6 +179,16 @@ typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
 #define SRSRAN_NOF_CTRL_SYMBOLS(cell, cfi) (cfi + (cell.nof_prb < 10 ? 1 : 0))
 
 #define SRSRAN_SYMBOL_HAS_REF_MBSFN(l, s) ((l == 2 && s == 0) || (l == 0 && s == 1) || (l == 4 && s == 1))
+#define SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) ((l == 1 && s == 0) || (l == 0 && s == 1) || (l == 2 && s == 1))
+#define SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s) (true)
+#define SRSRAN_SYMBOL_HAS_REF_MBSFN_SCS(l, s, scs) (scs == SRSRAN_SCS_15KHZ ? SRSRAN_SYMBOL_HAS_REF_MBSFN(l, s) : \
+    (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) : SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s)))
+
+#define SRSRAN_SYMBOL_REF_OFFSET_MBSFN(l, s) ((l == 2 && s == 0) || (l == 0 && s == 1) || (l == 4 && s == 1))
+#define SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) ((l == 1 && s == 0) || (l == 0 && s == 1) || (l == 2 && s == 1))
+#define SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s) (true)
+#define SRSRAN_SYMBOL_HAS_REF_MBSFN_SCS(l, s, scs) (scs == SRSRAN_SCS_15KHZ ? SRSRAN_SYMBOL_HAS_REF_MBSFN(l, s) : \
+    (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) : SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s)))
 
 #define SRSRAN_NON_MBSFN_REGION_GUARD_LENGTH(non_mbsfn_region, symbol_sz)                                              \
   ((non_mbsfn_region == 1)                                                                                             \
@@ -241,6 +268,9 @@ typedef struct SRSRAN_API {
   srsran_phich_length_t phich_length;
   srsran_phich_r_t      phich_resources;
   srsran_frame_type_t   frame_type;
+  bool                  mbms_dedicated;
+  uint8_t               additional_non_mbms_frames;
+  uint8_t               mbsfn_prb;
 } srsran_cell_t;
 
 // Common downlink properties that may change every subframe
@@ -250,6 +280,7 @@ typedef struct SRSRAN_API {
   uint32_t            cfi;
   srsran_sf_t         sf_type;
   uint32_t            non_mbsfn_region;
+  srsran_scs_t        subcarrier_spacing;
 } srsran_dl_sf_cfg_t;
 
 typedef struct SRSRAN_API {
@@ -437,6 +468,8 @@ SRSRAN_API bool srsran_N_id_1_isvalid(uint32_t N_id_1);
 SRSRAN_API bool srsran_symbol_sz_isvalid(uint32_t symbol_sz);
 
 SRSRAN_API int srsran_symbol_sz(uint32_t nof_prb);
+
+SRSRAN_API int srsran_symbol_sz_scs(uint32_t nof_prb, srsran_scs_t subcarrier_spacing);
 
 SRSRAN_API int srsran_symbol_sz_power2(uint32_t nof_prb);
 

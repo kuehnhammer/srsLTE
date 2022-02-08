@@ -55,7 +55,7 @@ public:
   virtual void write_pdu_bcch_bch(srsran::unique_byte_buffer_t sdu)                    = 0;
   virtual void write_pdu_bcch_dlsch(srsran::unique_byte_buffer_t sdu)                  = 0;
   virtual void write_pdu_pcch(srsran::unique_byte_buffer_t sdu)                        = 0;
-  virtual void write_pdu_mch(uint32_t lcid, srsran::unique_byte_buffer_t sdu)          = 0;
+  virtual void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, srsran::unique_byte_buffer_t sdu)          = 0;
   virtual void notify_delivery(uint32_t lcid, const srsran::pdcp_sn_vector_t& pdcp_sn) = 0;
   virtual void notify_failure(uint32_t lcid, const srsran::pdcp_sn_vector_t& pdcp_sn)  = 0;
 };

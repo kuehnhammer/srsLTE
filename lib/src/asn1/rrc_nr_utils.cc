@@ -1609,7 +1609,7 @@ namespace srsenb {
 
 int set_sched_cell_cfg_sib1(srsenb::sched_interface::cell_cfg_t* sched_cfg, const asn1::rrc_nr::sib1_s& sib1)
 {
-  bzero(sched_cfg, sizeof(srsenb::sched_interface::cell_cfg_t));
+  sched_cfg = {};
 
   // set SIB1 and SIB2+ period
   sched_cfg->sibs[0].period_rf = 16; // SIB1 is always 16 rf

@@ -121,22 +121,22 @@ int srsran_chest_dl_init(srsran_chest_dl_t* q, uint32_t max_prb, uint32_t nof_rx
       goto clean_exit;
     }
 
-    if (srsran_interp_linear_vector_init(&q->srsran_interp_linvec, SRSRAN_NRE * max_prb)) {
+    if (srsran_interp_linear_vector_init(&q->srsran_interp_linvec,  SRSRAN_NRE_SCS(SRSRAN_SCS_1KHZ25) * max_prb)) {
       ERROR("Error initializing vector interpolator");
       goto clean_exit;
     }
 
-    if (srsran_interp_linear_init(&q->srsran_interp_lin, 2 * max_prb, SRSRAN_NRE / 2)) {
+    if (srsran_interp_linear_init(&q->srsran_interp_lin, 2 * max_prb, SRSRAN_NRE_SCS(SRSRAN_SCS_1KHZ25) / 2)) {
       ERROR("Error initializing interpolator");
       goto clean_exit;
     }
 
-    if (srsran_interp_linear_init(&q->srsran_interp_lin_3, 4 * max_prb, SRSRAN_NRE / 4)) {
+    if (srsran_interp_linear_init(&q->srsran_interp_lin_3, 4 * max_prb, SRSRAN_NRE_SCS(SRSRAN_SCS_1KHZ25) / 4)) {
       ERROR("Error initializing interpolator");
       goto clean_exit;
     }
 
-    if (srsran_interp_linear_init(&q->srsran_interp_lin_mbsfn, 6 * max_prb, SRSRAN_NRE / 6)) {
+    if (srsran_interp_linear_init(&q->srsran_interp_lin_mbsfn, 24 * max_prb,  SRSRAN_NRE_SCS(SRSRAN_SCS_1KHZ25) / 24)) {
       ERROR("Error initializing interpolator");
       goto clean_exit;
     }
@@ -260,15 +260,24 @@ void srsran_chest_dl_res_free(srsran_chest_dl_res_t* q)
   }
 }
 
-int srsran_chest_dl_set_mbsfn_area_id(srsran_chest_dl_t* q, uint16_t mbsfn_area_id)
+int srsran_chest_dl_set_mbsfn_area_id(srsran_chest_dl_t* q, uint16_t mbsfn_area_id, srsran_scs_t subcarrier_spacing)
 {
+  if (srsran_interp_linear_vector_resize(&q->srsran_interp_linvec, SRSRAN_NRE_SCS(subcarrier_spacing) * q->cell.nof_prb)) {
+    ERROR("Error initializing vector interpolator\n");
+    return SRSRAN_ERROR;
+  }
+  if (srsran_interp_linear_resize(&q->srsran_interp_lin_mbsfn, srsran_refsignal_mbsfn_rs_per_symbol(subcarrier_spacing) *
+        q->cell.nof_prb, SRSRAN_NRE_SCS(subcarrier_spacing) / srsran_refsignal_mbsfn_rs_per_symbol(subcarrier_spacing))) {
+    fprintf(stderr, "Error initializing interpolator\n");
+    return SRSRAN_ERROR;
+  }
   if (mbsfn_area_id < SRSRAN_MAX_MBSFN_AREA_IDS) {
     if (!q->mbsfn_refs[mbsfn_area_id]) {
       q->mbsfn_refs[mbsfn_area_id] = calloc(1, sizeof(srsran_refsignal_t));
-      if (srsran_refsignal_mbsfn_init(q->mbsfn_refs[mbsfn_area_id], q->cell.nof_prb)) {
+      if (srsran_refsignal_mbsfn_init(q->mbsfn_refs[mbsfn_area_id], q->cell.nof_prb, subcarrier_spacing)) {
         return SRSRAN_ERROR;
       }
-      if (srsran_refsignal_mbsfn_set_cell(q->mbsfn_refs[mbsfn_area_id], q->cell, mbsfn_area_id)) {
+      if (srsran_refsignal_mbsfn_set_cell(q->mbsfn_refs[mbsfn_area_id], q->cell, mbsfn_area_id, subcarrier_spacing)) {
         return SRSRAN_ERROR;
       }
     }
@@ -292,7 +301,7 @@ int srsran_chest_dl_set_cell(srsran_chest_dl_t* q, srsran_cell_t cell)
         ERROR("Error initializing PSS signal for noise estimation");
         return SRSRAN_ERROR;
       }
-      if (srsran_interp_linear_vector_resize(&q->srsran_interp_linvec, SRSRAN_NRE * q->cell.nof_prb)) {
+      if (srsran_interp_linear_vector_resize(&q->srsran_interp_linvec, SRSRAN_NRE_SCS(SRSRAN_SCS_1KHZ25) * q->cell.nof_prb)) {
         ERROR("Error initializing vector interpolator");
         return SRSRAN_ERROR;
       }
@@ -306,7 +315,7 @@ int srsran_chest_dl_set_cell(srsran_chest_dl_t* q, srsran_cell_t cell)
         ERROR("Error initializing interpolator");
         return SRSRAN_ERROR;
       }
-      if (srsran_interp_linear_resize(&q->srsran_interp_lin_mbsfn, 6 * q->cell.nof_prb, SRSRAN_NRE / 6)) {
+      if (srsran_interp_linear_resize(&q->srsran_interp_lin_mbsfn, 24 * q->cell.nof_prb, SRSRAN_NRE_SCS(SRSRAN_SCS_1KHZ25) / 24)) {
         fprintf(stderr, "Error initializing interpolator\n");
         return SRSRAN_ERROR;
       }
@@ -339,7 +348,7 @@ static float estimate_noise_pilots(srsran_chest_dl_t* q, srsran_dl_sf_cfg_t* sf,
 
   uint32_t nref = npilots / nsymbols;
   uint32_t fidx =
-      (ch_mode == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_fidx(1) : srsran_refsignal_cs_fidx(q->cell, 0, port_id, 0);
+    (ch_mode == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_fidx(1, SRSRAN_SCS_15KHZ) : srsran_refsignal_cs_fidx(q->cell, 0, port_id, 0);
   cf_t* tmp_noise = q->tmp_noise;
 
   // Special case for 1 or 2 symbol
@@ -433,6 +442,7 @@ static float estimate_noise_empty_sc(srsran_chest_dl_t* q, cf_t* input)
 }
 
 #define cesymb(i) ce[SRSRAN_RE_IDX(q->cell.nof_prb, i, 0)]
+#define cesymb_mbsfn(i, scs) ce[SRSRAN_RE_IDX_MBSFN(q->cell.nof_prb, i, 0, scs)]
 
 static void interpolate_pilots(srsran_chest_dl_t*     q,
                                srsran_dl_sf_cfg_t*    sf,
@@ -441,8 +451,10 @@ static void interpolate_pilots(srsran_chest_dl_t*     q,
                                cf_t*                  ce,
                                uint32_t               port_id)
 {
+  srsran_scs_t scs = sf->subcarrier_spacing;
+
   /* interpolate the symbols with references in the freq domain */
-  uint32_t nsymbols    = (sf->sf_type == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_nof_symbols() + 1
+  uint32_t nsymbols    = (sf->sf_type == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_nof_symbols(scs) + (sf->subcarrier_spacing == SRSRAN_SCS_15KHZ ? 1 : 0)
                                                           : srsran_refsignal_cs_nof_symbols(&q->csr_refs, sf, port_id);
   uint32_t fidx_offset = 0;
 
@@ -456,21 +468,37 @@ static void interpolate_pilots(srsran_chest_dl_t*     q,
   // we add one to nsymbols to allow for inclusion of the non-mbms references in the channel estimation
   for (uint32_t l = 0; l < freq_nsymbols; l++) {
     if (sf->sf_type == SRSRAN_SF_MBSFN) {
-      if (l == 0) {
-        fidx_offset = srsran_refsignal_cs_fidx(q->cell, l, port_id, 0);
-        srsran_interp_linear_offset(
-            &q->srsran_interp_lin,
-            &pilot_estimates[2 * q->cell.nof_prb * l],
-            &ce[srsran_refsignal_cs_nsymbol(l, q->cell.cp, port_id) * q->cell.nof_prb * SRSRAN_NRE],
-            fidx_offset,
-            SRSRAN_NRE / 2 - fidx_offset);
-      } else {
-        fidx_offset = srsran_refsignal_mbsfn_fidx(l - 1);
+      if (sf->subcarrier_spacing == SRSRAN_SCS_15KHZ) {
+        if (l == 0) {
+          fidx_offset = srsran_refsignal_cs_fidx(q->cell, l, port_id, 0);
+          srsran_interp_linear_offset(
+              &q->srsran_interp_lin,
+              &pilot_estimates[2 * q->cell.nof_prb * l],
+              &ce[srsran_refsignal_cs_nsymbol(l, q->cell.cp, port_id) * q->cell.nof_prb * SRSRAN_NRE],
+              fidx_offset,
+              SRSRAN_NRE / 2 - fidx_offset);
+        } else {
+          fidx_offset = srsran_refsignal_mbsfn_fidx(l - 1, sf->subcarrier_spacing);
+          srsran_interp_linear_offset(&q->srsran_interp_lin_mbsfn,
+              &pilot_estimates[(2 * q->cell.nof_prb) + 6 * q->cell.nof_prb * (l - 1)],
+              &ce[srsran_refsignal_mbsfn_nsymbol(l - 1, scs) * q->cell.nof_prb * SRSRAN_NRE],
+              fidx_offset,
+              (fidx_offset) ? 1 : 2);
+        }
+      } else if (sf->subcarrier_spacing == SRSRAN_SCS_7KHZ5) {
+        fidx_offset = srsran_refsignal_mbsfn_fidx(l, sf->subcarrier_spacing);
         srsran_interp_linear_offset(&q->srsran_interp_lin_mbsfn,
-                                    &pilot_estimates[(2 * q->cell.nof_prb) + 6 * q->cell.nof_prb * (l - 1)],
-                                    &ce[srsran_refsignal_mbsfn_nsymbol(l - 1) * q->cell.nof_prb * SRSRAN_NRE],
-                                    fidx_offset,
-                                    (fidx_offset) ? 1 : 2);
+            &pilot_estimates[srsran_refsignal_mbsfn_rs_per_symbol(scs) * q->cell.nof_prb * l],
+            &ce[srsran_refsignal_mbsfn_nsymbol(l, scs) * q->cell.nof_prb * SRSRAN_NRE_SCS(scs)],
+            fidx_offset,
+            l==1 ? 2 : 4 );
+      } else  { // SRSRAN_SCS_1KHZ25
+        fidx_offset = sf->tti%2==0 ? 0 : 3;
+        srsran_interp_linear_offset(&q->srsran_interp_lin_mbsfn,
+            &pilot_estimates[srsran_refsignal_mbsfn_rs_per_symbol(scs) * q->cell.nof_prb * l],
+            &ce[srsran_refsignal_mbsfn_nsymbol(l, scs) * q->cell.nof_prb * SRSRAN_NRE_SCS(scs)],
+            fidx_offset,
+            sf->tti%2==0 ? 6 : 3 );
       }
     } else {
       if (cfg->estimator_alg == SRSRAN_ESTIMATOR_ALG_AVERAGE) {
@@ -515,10 +543,17 @@ static void interpolate_pilots(srsran_chest_dl_t*     q,
     }
   } else {
     if (sf->sf_type == SRSRAN_SF_MBSFN) {
-      srsran_interp_linear_vector(&q->srsran_interp_linvec, &cesymb(0), &cesymb(2), &cesymb(1), 2, 1);
-      srsran_interp_linear_vector(&q->srsran_interp_linvec, &cesymb(2), &cesymb(6), &cesymb(3), 4, 3);
-      srsran_interp_linear_vector(&q->srsran_interp_linvec, &cesymb(6), &cesymb(10), &cesymb(7), 4, 3);
-      srsran_interp_linear_vector2(&q->srsran_interp_linvec, &cesymb(6), &cesymb(10), &cesymb(10), &cesymb(11), 4, 1);
+      if (sf->subcarrier_spacing == SRSRAN_SCS_15KHZ) {
+        srsran_interp_linear_vector(&q->srsran_interp_linvec, &cesymb(0), &cesymb(2), &cesymb(1), 2, 1);
+        srsran_interp_linear_vector(&q->srsran_interp_linvec, &cesymb(2), &cesymb(6), &cesymb(3), 4, 3);
+        srsran_interp_linear_vector(&q->srsran_interp_linvec, &cesymb(6), &cesymb(10), &cesymb(7), 4, 3);
+        srsran_interp_linear_vector2(&q->srsran_interp_linvec, &cesymb(6), &cesymb(10), &cesymb(10), &cesymb(11), 4, 1);
+      } else if (sf->subcarrier_spacing == SRSRAN_SCS_7KHZ5) {
+        srsran_interp_linear_vector2(&q->srsran_interp_linvec, &cesymb_mbsfn(3, scs), &cesymb_mbsfn(1, scs), &cesymb_mbsfn(1, scs), &cesymb_mbsfn(0, scs), 2, 1);
+        srsran_interp_linear_vector(&q->srsran_interp_linvec, &cesymb_mbsfn(1, scs), &cesymb_mbsfn(3, scs), &cesymb_mbsfn(2, scs), 2, 1);
+        srsran_interp_linear_vector(&q->srsran_interp_linvec, &cesymb_mbsfn(3, scs), &cesymb_mbsfn(5, scs), &cesymb_mbsfn(4, scs), 2, 1);
+      }
+      // For SRSRAN_SCS_1KHZ25, there's only one symbol
     } else {
       if (SRSRAN_CP_ISNORM(q->cell.cp)) {
         if (port_id < 2) {
@@ -563,9 +598,9 @@ static void average_pilots(srsran_chest_dl_t*     q,
                            float*                 filter,
                            uint32_t               filter_len)
 {
-  uint32_t nsymbols = (sf->sf_type == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_nof_symbols()
+  uint32_t nsymbols = (sf->sf_type == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_nof_symbols(sf->subcarrier_spacing)
                                                        : srsran_refsignal_cs_nof_symbols(&q->csr_refs, sf, port_id);
-  uint32_t nref     = (sf->sf_type == SRSRAN_SF_MBSFN) ? 6 * q->cell.nof_prb : 2 * q->cell.nof_prb;
+  uint32_t nref = (sf->sf_type == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_rs_per_symbol(sf->subcarrier_spacing) * q->cell.nof_prb : 2 * q->cell.nof_prb;
 
   // Average in the time domain if enabled
   if (cfg->estimator_alg == SRSRAN_ESTIMATOR_ALG_AVERAGE && nsymbols > 1) {
@@ -588,9 +623,10 @@ static void average_pilots(srsran_chest_dl_t*     q,
     nsymbols = 1;
   }
 
-  uint32_t skip = (sf->sf_type == SRSRAN_SF_MBSFN) ? 2 * q->cell.nof_prb : 0;
-  if (sf->sf_type == SRSRAN_SF_MBSFN) {
+  uint32_t skip = 0;
+  if (sf->sf_type == SRSRAN_SF_MBSFN && sf->subcarrier_spacing == SRSRAN_SCS_15KHZ) {
     memcpy(&output[0], &input[0], skip * sizeof(cf_t));
+    skip = 2 * q->cell.nof_prb;
   }
 
   // Average in the frequency domain
@@ -736,7 +772,7 @@ static void chest_interpolate_noise_est(srsran_chest_dl_t*     q,
         }
         break;
       case SRSRAN_NOISE_ALG_EMPTY:
-        if (sf_idx == 0 || sf_idx == 5) {
+        if (ch_mode != SRSRAN_SF_MBSFN && (sf_idx == 0 || sf_idx == 5)) {
           q->noise_estimate[rxant_id][port_id] = estimate_noise_empty_sc(q, input);
         }
         break;
@@ -843,21 +879,26 @@ static int estimate_port_mbsfn(srsran_chest_dl_t*     q,
 {
   uint32_t sf_idx        = sf->tti % 10;
   uint16_t mbsfn_area_id = cfg->mbsfn_area_id;
+  uint8_t  symbol_offset = 0;
 
   if (!q->mbsfn_refs[mbsfn_area_id]) {
     ERROR("Error in chest_dl: MBSFN area id=%d not initialized", cfg->mbsfn_area_id);
   }
 
   /* Use the known CSR signal to compute Least-squares estimates */
-  srsran_refsignal_mbsfn_get_sf(q->cell, port_id, input, q->pilot_recv_signal);
-  // estimate for non-mbsfn section of subframe
-  srsran_vec_prod_conj_ccc(
-      q->pilot_recv_signal, q->csr_refs.pilots[port_id / 2][sf_idx], q->pilot_estimates, (2 * q->cell.nof_prb));
+  srsran_refsignal_mbsfn_get_sf(q->cell, port_id, input, q->pilot_recv_signal, sf->subcarrier_spacing, sf_idx);
 
-  srsran_vec_prod_conj_ccc(&q->pilot_recv_signal[(2 * q->cell.nof_prb)],
+  if (sf->subcarrier_spacing == SRSRAN_SCS_15KHZ) {
+    // estimate for non-mbsfn section of subframe
+    srsran_vec_prod_conj_ccc(
+        q->pilot_recv_signal, q->csr_refs.pilots[port_id / 2][sf_idx], q->pilot_estimates, (2 * q->cell.nof_prb));
+    symbol_offset = 2;
+  }
+
+  srsran_vec_prod_conj_ccc(&q->pilot_recv_signal[(symbol_offset * q->cell.nof_prb)],
                            q->mbsfn_refs[mbsfn_area_id]->pilots[port_id / 2][sf_idx],
-                           &q->pilot_estimates[(2 * q->cell.nof_prb)],
-                           SRSRAN_REFSIGNAL_NUM_SF_MBSFN(q->cell.nof_prb, port_id) - (2 * q->cell.nof_prb));
+                           &q->pilot_estimates[(symbol_offset * q->cell.nof_prb)],
+                           SRSRAN_REFSIGNAL_NUM_SF_MBSFN(q->cell.nof_prb, sf->subcarrier_spacing) - (symbol_offset * q->cell.nof_prb));
 
   chest_interpolate_noise_est(q, sf, cfg, input, ce, port_id, rxant_id);
 

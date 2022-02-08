@@ -104,9 +104,19 @@ srsran_ue_mib_sync_init_multi(srsran_ue_mib_sync_t* q,
                               uint32_t nof_rx_channels,
                               void*    stream_handler);
 
+SRSRAN_API int
+srsran_ue_mib_sync_init_multi_prb(srsran_ue_mib_sync_t* q,
+                              int(recv_callback)(void*, cf_t* [SRSRAN_MAX_CHANNELS], uint32_t, srsran_timestamp_t*),
+                              uint32_t nof_rx_channels,
+                              void*    stream_handler,
+                              uint8_t nof_prb);
+
 SRSRAN_API void srsran_ue_mib_sync_free(srsran_ue_mib_sync_t* q);
 
 SRSRAN_API int srsran_ue_mib_sync_set_cell(srsran_ue_mib_sync_t* q, srsran_cell_t cell);
+
+SRSRAN_API int srsran_ue_mib_sync_set_cell_prb(srsran_ue_mib_sync_t* q, srsran_cell_t cell,
+                                      uint8_t nof_prb);
 
 SRSRAN_API void srsran_ue_mib_sync_reset(srsran_ue_mib_sync_t* q);
 
@@ -116,5 +126,11 @@ SRSRAN_API int srsran_ue_mib_sync_decode(srsran_ue_mib_sync_t* q,
                                          uint32_t*             nof_tx_ports,
                                          int*                  sfn_offset);
 
+SRSRAN_API int srsran_ue_mib_sync_decode_prb(srsran_ue_mib_sync_t * q,
+                                         uint32_t max_frames_timeout,
+                                         uint8_t bch_payload[SRSRAN_BCH_PAYLOAD_LEN],
+                                         uint32_t *nof_tx_ports,
+                                         int *sfn_offset,
+                                         uint8_t nof_prb);
 #endif // SRSRAN_UE_MIB_H
 

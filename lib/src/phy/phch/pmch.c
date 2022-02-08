@@ -39,7 +39,7 @@
 
 const static srsran_mod_t modulations[4] = {SRSRAN_MOD_BPSK, SRSRAN_MOD_QPSK, SRSRAN_MOD_16QAM, SRSRAN_MOD_64QAM};
 
-static int pmch_cp(srsran_pmch_t* q, cf_t* input, cf_t* output, uint32_t lstart_grant, bool put)
+static int pmch_cp(srsran_pmch_t* q, cf_t* input, cf_t* output, uint32_t lstart_grant, bool put, srsran_scs_t scs, uint32_t sf)
 {
   uint32_t s, n, l, lp, lstart, lend, nof_refs;
   cf_t *   in_ptr = input, *out_ptr = output;
@@ -53,36 +53,30 @@ static int pmch_cp(srsran_pmch_t* q, cf_t* input, cf_t* output, uint32_t lstart_
     offset_original = input;
   }
 #endif
-  nof_refs = 6;
-  for (s = 0; s < 2; s++) {
-    for (l = 0; l < SRSRAN_CP_EXT_NSYMB; l++) {
+  nof_refs = srsran_refsignal_mbsfn_rs_per_symbol(scs);
+  for (s = 0; s < SRSRAN_MBSFN_NOF_SLOTS(scs); s++) {
+    for (l = 0; l < SRSRAN_MBSFN_NOF_SYMBOLS(scs); l++) {
       for (n = 0; n < q->cell.nof_prb; n++) {
         // If this PRB is assigned
-        if (true) {
-          if (s == 0) {
-            lstart = lstart_grant;
+        if (s == 0) {
+          lstart = lstart_grant;
+        } else {
+          lstart = 0;
+        }
+        lend = SRSRAN_MBSFN_NOF_SYMBOLS(scs);
+        lp   = l + s * SRSRAN_MBSFN_NOF_SYMBOLS(scs);
+        if (put) {
+          out_ptr = &output[(lp * q->cell.nof_prb + n) * SRSRAN_NRE_SCS(scs)];
+        } else {
+          in_ptr = &input[(lp * q->cell.nof_prb + n) * SRSRAN_NRE_SCS(scs)];
+        }
+        // This is a symbol in a normal PRB with or without references
+        if (l >= lstart && l < lend) {
+          if (SRSRAN_SYMBOL_HAS_REF_MBSFN_SCS(l, s, scs)) {
+            offset = srsran_refsignal_mbsfn_offset(l, s, sf, scs);
+            prb_cp_ref_scs(&in_ptr, &out_ptr, offset, nof_refs, nof_refs, put, scs);
           } else {
-            lstart = 0;
-          }
-          lend = SRSRAN_CP_EXT_NSYMB;
-          lp   = l + s * SRSRAN_CP_EXT_NSYMB;
-          if (put) {
-            out_ptr = &output[(lp * q->cell.nof_prb + n) * SRSRAN_NRE];
-          } else {
-            in_ptr = &input[(lp * q->cell.nof_prb + n) * SRSRAN_NRE];
-          }
-          // This is a symbol in a normal PRB with or without references
-          if (l >= lstart && l < lend) {
-            if (SRSRAN_SYMBOL_HAS_REF_MBSFN(l, s)) {
-              if (l == 0 && s == 1) {
-                offset = 1;
-              } else {
-                offset = 0;
-              }
-              prb_cp_ref(&in_ptr, &out_ptr, offset, nof_refs, nof_refs, put);
-            } else {
-              prb_cp(&in_ptr, &out_ptr, 1);
-            }
+            prb_cp_scs(&in_ptr, &out_ptr, 1, scs);
           }
         }
       }
@@ -108,7 +102,7 @@ static int pmch_cp(srsran_pmch_t* q, cf_t* input, cf_t* output, uint32_t lstart_
  */
 static int pmch_put(srsran_pmch_t* q, cf_t* symbols, cf_t* sf_symbols, uint32_t lstart)
 {
-  return pmch_cp(q, symbols, sf_symbols, lstart, true);
+  return pmch_cp(q, symbols, sf_symbols, lstart, true, SRSRAN_SCS_15KHZ, 0);
 }
 
 /**
@@ -118,9 +112,9 @@ static int pmch_put(srsran_pmch_t* q, cf_t* symbols, cf_t* sf_symbols, uint32_t 
  *
  * 36.211 10.3 section 6.3.5
  */
-static int pmch_get(srsran_pmch_t* q, cf_t* sf_symbols, cf_t* symbols, uint32_t lstart)
+static int pmch_get(srsran_pmch_t* q, cf_t* sf_symbols, cf_t* symbols, uint32_t lstart, srsran_scs_t scs, uint32_t sf)
 {
-  return pmch_cp(q, sf_symbols, symbols, lstart, false);
+  return pmch_cp(q, sf_symbols, symbols, lstart, false, scs, sf);
 }
 
 int srsran_pmch_init(srsran_pmch_t* q, uint32_t max_prb, uint32_t nof_rx_antennas)
@@ -309,7 +303,7 @@ int srsran_pmch_decode(srsran_pmch_t*         q,
     uint32_t lstart = SRSRAN_NOF_CTRL_SYMBOLS(q->cell, sf->cfi);
     for (int j = 0; j < q->nof_rx_antennas; j++) {
       /* extract symbols */
-      n = pmch_get(q, sf_symbols[j], q->symbols[j], lstart);
+      n = pmch_get(q, sf_symbols[j], q->symbols[j], lstart, sf->subcarrier_spacing, sf->tti % 10);
       if (n != cfg->pdsch_cfg.grant.nof_re) {
         ERROR("PMCH 1 extract symbols error expecting %d symbols but got %d, lstart %d",
               cfg->pdsch_cfg.grant.nof_re,
@@ -320,7 +314,7 @@ int srsran_pmch_decode(srsran_pmch_t*         q,
 
       /* extract channel estimates */
       for (i = 0; i < q->cell.nof_ports; i++) {
-        n = pmch_get(q, channel->ce[i][j], q->ce[i][j], lstart);
+        n = pmch_get(q, channel->ce[i][j], q->ce[i][j], lstart, sf->subcarrier_spacing, sf->tti % 10);
         if (n != cfg->pdsch_cfg.grant.nof_re) {
           ERROR("PMCH 2 extract chest error expecting %d symbols but got %d", cfg->pdsch_cfg.grant.nof_re, n);
           return SRSRAN_ERROR;
@@ -378,7 +372,7 @@ void srsran_configure_pmch(srsran_pmch_cfg_t* pmch_cfg, srsran_cell_t* cell, srs
   pmch_cfg->area_id                       = 1;
   pmch_cfg->pdsch_cfg.rnti                = SRSRAN_MRNTI;
   pmch_cfg->pdsch_cfg.grant.nof_layers    = 1;
-  pmch_cfg->pdsch_cfg.grant.nof_prb       = cell->nof_prb;
+  pmch_cfg->pdsch_cfg.grant.nof_prb       = cell->mbsfn_prb;
   pmch_cfg->pdsch_cfg.grant.tb[0].mcs_idx = mbsfn_cfg->mbsfn_mcs;
   pmch_cfg->pdsch_cfg.grant.tb[0].enabled = mbsfn_cfg->enable;
   pmch_cfg->pdsch_cfg.grant.tb[0].rv      = SRSRAN_PMCH_RV;

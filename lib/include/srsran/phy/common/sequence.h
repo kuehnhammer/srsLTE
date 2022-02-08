@@ -83,7 +83,7 @@ SRSRAN_API void srsran_sequence_apply_packed(const uint8_t* in, uint8_t* out, ui
 
 SRSRAN_API void srsran_sequence_apply_bit(const uint8_t* in, uint8_t* out, uint32_t length, uint32_t seed);
 
-SRSRAN_API int srsran_sequence_pbch(srsran_sequence_t* seq, srsran_cp_t cp, uint32_t cell_id);
+SRSRAN_API int srsran_sequence_pbch(srsran_sequence_t* seq, srsran_cp_t cp, uint32_t cell_id, bool mbms_dedicated_cell);
 
 SRSRAN_API int srsran_sequence_pcfich(srsran_sequence_t* seq, uint32_t nslot, uint32_t cell_id);
 

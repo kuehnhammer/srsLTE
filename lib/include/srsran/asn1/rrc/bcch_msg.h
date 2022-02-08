@@ -1046,6 +1046,96 @@ struct mbsfn_area_info_r9_s {
   void        to_json(json_writer& j) const;
 };
 
+// MBSFN-AreaInfo-r16 ::= SEQUENCE
+struct mbsfn_area_info_r16_s {
+  struct mcch_cfg_r16_s_ {
+    struct mcch_repeat_period_r16_opts {
+      enum options { rf1, rf2, rf4, rf8, rf16,
+        rf32, rf64, rf128, rf256, spare7, spare6, spare5,
+        spare4, spare3, spare2, spare1, nulltype } value;
+      typedef uint16_t number_type;
+
+      std::string to_string() const;
+      uint16_t    to_number() const;
+    };
+    typedef enumerated<mcch_repeat_period_r16_opts> mcch_repeat_period_r16_e_;
+
+    struct mcch_mod_period_r16_opts {
+      enum options { rf1, rf2, rf4, rf8, rf16,
+        rf32, rf64, rf128, rf256, rf512, rf1024, spare5,
+        spare4, spare3, spare2, spare1, nulltype } value;
+      typedef uint16_t number_type;
+
+      std::string to_string() const;
+      uint16_t    to_number() const;
+    };
+    typedef enumerated<mcch_mod_period_r16_opts> mcch_mod_period_r16_e_;
+
+    struct sig_mcs_r16_opts {
+      enum options { n2, n7, n13, n19, nulltype } value;
+      typedef uint8_t number_type;
+
+      std::string to_string() const;
+      uint8_t     to_number() const;
+    };
+    typedef enumerated<sig_mcs_r16_opts> sig_mcs_r16_e_;
+
+    // member variables
+    mcch_repeat_period_r16_e_ mcch_repeat_period_r16;
+    mcch_mod_period_r16_e_    mcch_mod_period_r16;
+    uint8_t                   mcch_offset_r16 = 0;
+    fixed_bitstring<10>       sf_alloc_info_r16;
+    sig_mcs_r16_e_            sig_mcs_r16;
+  };
+
+  struct subcarrier_spacing_mbms_r16_opts {
+    enum options { khz_7dot5, khz_2dot5, khz_1dot25, khz0dot37,
+      spare4, spare3, spare2, spare1, nulltype } value;
+    typedef float number_type;
+
+    std::string to_string() const;
+    float       to_number() const;
+    std::string to_number_string() const;
+  };
+  typedef enumerated<subcarrier_spacing_mbms_r16_opts> subcarrier_spacing_mbms_r16_e_;
+
+  struct time_separation_r16_opts {
+    enum options { s12, s14, nulltype } value;
+    typedef uint8_t number_type;
+
+    std::string to_string() const;
+    uint8_t       to_number() const;
+    std::string to_number_string() const;
+  };
+  typedef enumerated<time_separation_r16_opts> time_separation_r16_e_;
+
+  struct pmch_bandwidth_v16xy_opts {
+    enum options { n30, n35, n40, spare1, nulltype } value;
+    typedef uint8_t number_type;
+
+    std::string to_string() const;
+    uint8_t       to_number() const;
+    std::string to_number_string() const;
+  };
+  typedef enumerated<pmch_bandwidth_v16xy_opts> pmch_bandwidth_v16xy_e_;
+
+  // member variables
+  bool                           ext              = false;
+  uint16_t                       mbsfn_area_id_r16 = 0;
+  uint8_t                        notif_ind_r16 = 0;
+  mcch_cfg_r16_s_                mcch_cfg_r16;
+  subcarrier_spacing_mbms_r16_e_ subcarrier_spacing_mbms_r16;
+  bool                           time_separation_r16_present = false;
+  time_separation_r16_e_         time_separation_r16;
+  bool                           pmch_bandwidth_v16xy_present = false;
+  pmch_bandwidth_v16xy_e_        pmch_bandwidth_v16xy;
+
+  // sequence methods
+  // SRSASN_CODE pack(bit_ref& bref) const; // not implemented
+  SRSASN_CODE unpack(cbit_ref& bref);
+  void        to_json(json_writer& j) const;
+};
+
 // NeighCellListCDMA2000 ::= SEQUENCE (SIZE (1..16)) OF NeighCellCDMA2000
 using neigh_cell_list_cdma2000_l = dyn_array<neigh_cell_cdma2000_s>;
 
@@ -1450,6 +1540,8 @@ using mbms_sai_inter_freq_list_v1140_l = dyn_array<mbms_sai_inter_freq_v1140_s>;
 
 // MBSFN-AreaInfoList-r9 ::= SEQUENCE (SIZE (1..8)) OF MBSFN-AreaInfo-r9
 using mbsfn_area_info_list_r9_l = dyn_array<mbsfn_area_info_r9_s>;
+
+using mbsfn_area_info_list_r16_l = dyn_array<mbsfn_area_info_r16_s>;
 
 // MeasIdleConfigSIB-r15 ::= SEQUENCE
 struct meas_idle_cfg_sib_r15_s {
@@ -1968,6 +2060,9 @@ struct sib_type13_r9_s {
   // ...
   // group 0
   copy_ptr<mbms_notif_cfg_v1430_s> notif_cfg_v1430;
+
+  bool                      mbsfn_area_info_list_r16_present = false;
+  mbsfn_area_info_list_r16_l mbsfn_area_info_list_r16;
 
   // sequence methods
   SRSASN_CODE pack(bit_ref& bref) const;

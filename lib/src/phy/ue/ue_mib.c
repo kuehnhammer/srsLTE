@@ -31,7 +31,8 @@
 #include "srsran/phy/utils/debug.h"
 #include "srsran/phy/utils/vector.h"
 
-#define MIB_BUFFER_MAX_SAMPLES (3 * SRSRAN_SF_LEN_PRB(SRSRAN_UE_MIB_NOF_PRB))
+#define MIB_BUFFER_MAX_SAMPLES_FOR_PRB(prb)   (8 * SRSRAN_SF_LEN_PRB(prb))
+#define MIB_BUFFER_MAX_SAMPLES                MIB_BUFFER_MAX_SAMPLES_FOR_PRB(SRSRAN_UE_MIB_NOF_PRB)
 
 int srsran_ue_mib_init(srsran_ue_mib_t* q, cf_t* in_buffer, uint32_t max_prb)
 {
@@ -99,9 +100,17 @@ int srsran_ue_mib_set_cell(srsran_ue_mib_t* q, srsran_cell_t cell)
       ERROR("Error initiating PBCH");
       return SRSRAN_ERROR;
     }
-    if (srsran_ofdm_rx_set_prb(&q->fft, cell.cp, cell.nof_prb)) {
-      ERROR("Error initializing FFT");
-      return SRSRAN_ERROR;
+    if (cell.mbsfn_prb != 0 && cell.nof_prb != cell.mbsfn_prb) {
+      if (srsran_ofdm_rx_set_prb_symbol_sz(&q->fft, cell.cp, cell.nof_prb,
+            srsran_symbol_sz(cell.mbsfn_prb))) {
+        ERROR("Error resizing FFT\n");
+        return SRSRAN_ERROR;
+      }
+    } else {
+      if (srsran_ofdm_rx_set_prb(&q->fft, cell.cp, cell.nof_prb)) {
+        ERROR("Error initializing FFT\n");
+        return SRSRAN_ERROR;
+      }
     }
 
     if (cell.nof_ports == 0) {
@@ -176,19 +185,28 @@ int srsran_ue_mib_sync_init_multi(srsran_ue_mib_sync_t* q,
                                   uint32_t nof_rx_channels,
                                   void*    stream_handler)
 {
+  return srsran_ue_mib_sync_init_multi_prb(q, recv_callback, nof_rx_channels, stream_handler, SRSRAN_UE_MIB_NOF_PRB);
+}
+
+int srsran_ue_mib_sync_init_multi_prb(srsran_ue_mib_sync_t* q,
+    int(recv_callback)(void*, cf_t* [SRSRAN_MAX_CHANNELS], uint32_t, srsran_timestamp_t*),
+    uint32_t nof_rx_channels,
+    void*    stream_handler,
+    uint8_t nof_prb)
+{
   for (int i = 0; i < nof_rx_channels; i++) {
     q->sf_buffer[i] = srsran_vec_cf_malloc(MIB_BUFFER_MAX_SAMPLES);
   }
   q->nof_rx_channels = nof_rx_channels;
 
   // Use 1st RF channel only to receive MIB
-  if (srsran_ue_mib_init(&q->ue_mib, q->sf_buffer[0], SRSRAN_UE_MIB_NOF_PRB)) {
+  if (srsran_ue_mib_init(&q->ue_mib, q->sf_buffer[0], nof_prb)) {
     ERROR("Error initiating ue_mib");
     return SRSRAN_ERROR;
   }
   // Configure ue_sync to receive all channels
   if (srsran_ue_sync_init_multi(
-          &q->ue_sync, SRSRAN_UE_MIB_NOF_PRB, false, recv_callback, nof_rx_channels, stream_handler)) {
+          &q->ue_sync, nof_prb, false, recv_callback, nof_rx_channels, stream_handler)) {
     fprintf(stderr, "Error initiating ue_sync\n");
     srsran_ue_mib_free(&q->ue_mib);
     return SRSRAN_ERROR;
@@ -198,11 +216,16 @@ int srsran_ue_mib_sync_init_multi(srsran_ue_mib_sync_t* q,
 
 int srsran_ue_mib_sync_set_cell(srsran_ue_mib_sync_t* q, srsran_cell_t cell)
 {
+  // MIB search is done at 6 PRB by default
+  return srsran_ue_mib_sync_set_cell_prb(q, cell, SRSRAN_UE_MIB_NOF_PRB);
+}
+
+int srsran_ue_mib_sync_set_cell_prb(srsran_ue_mib_sync_t* q, srsran_cell_t cell, uint8_t nof_prb)
+{
   // If the ports are set to 0, ue_mib goes through 1, 2 and 4 ports to blindly detect nof_ports
   cell.nof_ports = 0;
 
-  // MIB search is done at 6 PRB
-  cell.nof_prb = SRSRAN_UE_MIB_NOF_PRB;
+  cell.nof_prb = nof_prb;
 
   if (srsran_ue_mib_set_cell(&q->ue_mib, cell)) {
     ERROR("Error initiating ue_mib");
@@ -239,6 +262,16 @@ int srsran_ue_mib_sync_decode(srsran_ue_mib_sync_t* q,
                               uint32_t*             nof_tx_ports,
                               int*                  sfn_offset)
 {
+  return srsran_ue_mib_sync_decode_prb(q, max_frames_timeout, bch_payload, nof_tx_ports, sfn_offset, SRSRAN_UE_MIB_NOF_PRB);
+}
+
+int srsran_ue_mib_sync_decode_prb(srsran_ue_mib_sync_t* q,
+                              uint32_t              max_frames_timeout,
+                              uint8_t               bch_payload[SRSRAN_BCH_PAYLOAD_LEN],
+                              uint32_t*             nof_tx_ports,
+                              int*                  sfn_offset,
+                              uint8_t               nof_prb)
+{
   int      ret        = SRSRAN_ERROR_INVALID_INPUTS;
   uint32_t nof_frames = 0;
   int      mib_ret    = SRSRAN_UE_MIB_NOTFOUND;
@@ -251,13 +284,14 @@ int srsran_ue_mib_sync_decode(srsran_ue_mib_sync_t* q,
 
   do {
     mib_ret = SRSRAN_UE_MIB_NOTFOUND;
-    ret     = srsran_ue_sync_zerocopy(&q->ue_sync, q->sf_buffer, MIB_BUFFER_MAX_SAMPLES);
+    ret     = srsran_ue_sync_zerocopy(&q->ue_sync, q->sf_buffer, MIB_BUFFER_MAX_SAMPLES_FOR_PRB(nof_prb));
     if (ret < 0) {
       ERROR("Error calling srsran_ue_sync_work()");
       return -1;
     }
 
-    if (srsran_ue_sync_get_sfidx(&q->ue_sync) == 0) {
+    if (srsran_ue_sync_get_sfn(&q->ue_sync)%4 == 0 && srsran_ue_sync_get_sfidx(&q->ue_sync) == 0) {
+   // if (srsran_ue_sync_get_sfidx(&q->ue_sync) == 0 ) { // [TODO] fix for mixed-mode
       if (ret == 1) {
         mib_ret = srsran_ue_mib_decode(&q->ue_mib, bch_payload, nof_tx_ports, sfn_offset);
       } else {

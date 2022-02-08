@@ -150,7 +150,7 @@ SRSRAN_API void srsran_chest_dl_res_free(srsran_chest_dl_res_t* q);
 
 /* These functions change the internal object state */
 
-SRSRAN_API int srsran_chest_dl_set_mbsfn_area_id(srsran_chest_dl_t* q, uint16_t mbsfn_area_id);
+SRSRAN_API int srsran_chest_dl_set_mbsfn_area_id(srsran_chest_dl_t* q, uint16_t mbsfn_area_id, srsran_scs_t subcarrier_spacing);
 
 SRSRAN_API int srsran_chest_dl_set_cell(srsran_chest_dl_t* q, srsran_cell_t cell);
 

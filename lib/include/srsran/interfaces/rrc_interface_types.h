@@ -345,12 +345,16 @@ struct mbms_notif_cfg_t {
 struct mbsfn_area_info_t {
   uint8_t mbsfn_area_id = 0;
   enum class region_len_t { s1, s2, nulltype } non_mbsfn_region_len;
+  enum class subcarrier_spacing_t { khz_7dot5, khz_2dot5, khz_1dot25, khz_0dot25, nulltype } subcarrier_spacing;
+  uint8_t pmch_bandwidth = 0;
   uint8_t notif_ind = 0;
   struct mcch_cfg_t {
-    enum class repeat_period_t { rf32, rf64, rf128, rf256, nulltype } mcch_repeat_period;
+    enum class repeat_period_t { rf1, rf2, rf4, rf8, rf16, rf32, rf64, rf128, rf256, spare7, spare6, spare5, spare4, spare3, spare2, spare1, nulltype } mcch_repeat_period;
+
     uint8_t mcch_offset = 0;
-    enum class mod_period_t { rf512, rf1024 } mcch_mod_period;
-    uint8_t sf_alloc_info = 0;
+    enum class mod_period_t { rf1, rf2, rf4, rf8, rf16, rf32, rf64, rf128, rf512, rf1024, spare5, spare4, spare3, spare2, spare1, nulltype } mcch_mod_period;
+    uint16_t sf_alloc_info = 0;
+    bool sf_alloc_info_is_r16 = false;
     enum class sig_mcs_t { n2, n7, n13, n19, nulltype } sig_mcs;
   } mcch_cfg;
 };
@@ -361,7 +365,7 @@ inline uint16_t enum_to_number(const mbsfn_area_info_t::region_len_t& region_len
 }
 inline uint16_t enum_to_number(const mbsfn_area_info_t::mcch_cfg_t::repeat_period_t& repeat_period)
 {
-  constexpr static uint16_t options[] = {32, 64, 128, 256};
+  constexpr static uint16_t options[] = {1, 2, 4, 8, 16, 32, 64, 128, 256};
   return enum_to_number(
       options, (uint32_t)mbsfn_area_info_t::mcch_cfg_t::repeat_period_t::nulltype, (uint32_t)repeat_period);
 }

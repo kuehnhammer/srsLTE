@@ -102,6 +102,28 @@ int srsran_ue_cellsearch_init_multi(
     uint32_t nof_rx_antennas,
     void*    stream_handler)
 {
+  return srsran_ue_cellsearch_init_multi_prb(q, max_frames, recv_callback, nof_rx_antennas, stream_handler, SRSRAN_CS_NOF_PRB);
+}
+
+int srsran_ue_cellsearch_init_multi_prb(
+    srsran_ue_cellsearch_t* q,
+    uint32_t                max_frames,
+    int(recv_callback)(void*, cf_t* [SRSRAN_MAX_CHANNELS], uint32_t, srsran_timestamp_t*),
+    uint32_t nof_rx_antennas,
+    void*    stream_handler,
+    uint8_t nof_prb)
+{
+  return srsran_ue_cellsearch_init_multi_prb_cp(q, max_frames, recv_callback, nof_rx_antennas, stream_handler, SRSRAN_CS_NOF_PRB, false);
+}
+int srsran_ue_cellsearch_init_multi_prb_cp(
+    srsran_ue_cellsearch_t* q,
+    uint32_t                max_frames,
+    int(recv_callback)(void*, cf_t* [SRSRAN_MAX_CHANNELS], uint32_t, srsran_timestamp_t*),
+    uint32_t nof_rx_antennas,
+    void*    stream_handler,
+    uint8_t nof_prb,
+    bool search_extended_cp)
+{
   int ret = SRSRAN_ERROR_INVALID_INPUTS;
 
   if (q != NULL && nof_rx_antennas < SRSRAN_MAX_CHANNELS) {
@@ -112,7 +134,10 @@ int srsran_ue_cellsearch_init_multi(
 
     bzero(&cell, sizeof(srsran_cell_t));
     cell.id      = SRSRAN_CELL_ID_UNKNOWN;
-    cell.nof_prb = SRSRAN_CS_NOF_PRB;
+    cell.nof_prb = nof_prb;
+    if (search_extended_cp) {
+      cell.cp = SRSRAN_CP_EXT;
+    }
 
     if (srsran_ue_sync_init_multi(&q->ue_sync, cell.nof_prb, true, recv_callback, nof_rx_antennas, stream_handler)) {
       fprintf(stderr, "Error initiating ue_sync\n");

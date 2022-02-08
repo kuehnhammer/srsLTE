@@ -360,27 +360,66 @@ int srsran_symbol_sz_power2(uint32_t nof_prb)
 
 int srsran_symbol_sz(uint32_t nof_prb)
 {
+  return srsran_symbol_sz_scs(nof_prb, SRSRAN_SCS_15KHZ);
+}
+
+int srsran_symbol_sz_scs(uint32_t nof_prb, srsran_scs_t subcarrier_spacing)
+{
   if (nof_prb <= 0) {
     return SRSRAN_ERROR;
   }
-  if (!use_standard_rates) {
+  if (subcarrier_spacing == SRSRAN_SCS_1KHZ25) {
     if (nof_prb <= 6) {
-      return 128;
-    } else if (nof_prb <= 15) {
-      return 256;
-    } else if (nof_prb <= 25) {
-      return 384;
-    } else if (nof_prb <= 50) {
-      return 768;
-    } else if (nof_prb <= 75) {
-      return 1024;
-    } else if (nof_prb <= 110) {
       return 1536;
+    } else if (nof_prb <= 15) {
+      return 3072;
+    } else if (nof_prb <= 25) {
+      return 6144;
+    } else if (nof_prb <= 50) {
+      return 12288;
+    } else if (nof_prb <= 75) {
+      return 18432;
+    } else if (nof_prb <= 110) {
+      return 24567;
+    } else {
+      return SRSRAN_ERROR;
+    }
+  } else if (subcarrier_spacing == SRSRAN_SCS_7KHZ5) {
+    if (nof_prb <= 6) {
+      return 256;
+    } else if (nof_prb <= 15) {
+      return 512;
+    } else if (nof_prb <= 25) {
+      return 1024;
+    } else if (nof_prb <= 50) {
+      return 2048;
+    } else if (nof_prb <= 75) {
+      return 3072;
+    } else if (nof_prb <= 110) {
+      return 4096;
     } else {
       return SRSRAN_ERROR;
     }
   } else {
-    return srsran_symbol_sz_power2(nof_prb);
+    if (!use_standard_rates) {
+      if (nof_prb <= 6) {
+        return 128;
+      } else if (nof_prb <= 15) {
+        return 256;
+      } else if (nof_prb <= 25) {
+        return 384;
+      } else if (nof_prb <= 50) {
+        return 768;
+      } else if (nof_prb <= 75) {
+        return 1024;
+      } else if (nof_prb <= 110) {
+        return 1536;
+      } else {
+        return SRSRAN_ERROR;
+      }
+    } else {
+      return srsran_symbol_sz_power2(nof_prb);
+    }
   }
 }
 
