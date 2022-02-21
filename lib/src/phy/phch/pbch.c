@@ -342,6 +342,34 @@ void srsran_pbch_mib_mbms_unpack(uint8_t* msg, srsran_cell_t* cell, uint32_t* sf
 }
 
 /**
+ * Packs MIB-MBMS to PBCH message.
+ *
+ * @param[out] payload Output unpacked bit array of size 24
+ * @param[in] sfn System frame number
+ * @param[in] cell Cell configuration to be encoded in MIB
+ */
+void srsran_pbch_mib_mbms_pack(srsran_cell_t* cell, uint32_t sfn, uint32_t additional_non_mbsfn_subframes, uint8_t* payload)
+{
+  int bw = 0;
+
+  uint8_t* msg = payload;
+
+  bzero(msg, 24);
+
+  if (cell->nof_prb <= 6) {
+    bw = 0;
+  } else if (cell->nof_prb <= 15) {
+    bw = 1;
+  } else {
+    bw = 1 + cell->nof_prb / 25;
+  }
+  srsran_bit_unpack(bw, &msg, 3);
+
+  srsran_bit_unpack(sfn >> 4, &msg, 6);
+
+  *msg = additional_non_mbsfn_subframes;
+}
+/**
  * Packs MIB to PBCH message.
  *
  * @param[out] payload Output unpacked bit array of size 24

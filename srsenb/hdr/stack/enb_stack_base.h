@@ -45,6 +45,7 @@ typedef struct {
 
 typedef struct {
   bool        enable;
+  bool        mbms_dedicated;
   std::string m1u_multiaddr;
   std::string m1u_if_addr;
   uint16_t    mcs;

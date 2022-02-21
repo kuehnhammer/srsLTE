@@ -107,4 +107,6 @@ SRSRAN_API void srsran_pbch_mib_mbms_unpack(uint8_t* msg, srsran_cell_t* cell, u
 
 SRSRAN_API void srsran_pbch_mib_pack(srsran_cell_t* cell, uint32_t sfn, uint8_t* msg);
 
+SRSRAN_API void srsran_pbch_mib_mbms_pack(srsran_cell_t* cell, uint32_t sfn, uint32_t additional_non_mbsfn_subframes, uint8_t* msg);
+
 #endif // SRSRAN_PBCH_H

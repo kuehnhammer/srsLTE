@@ -1089,6 +1089,7 @@ int parse_cell_cfg(all_args_t* args_, srsran_cell_t* cell)
   cell->nof_ports  = args_->enb.nof_ports;
   cell->nof_prb    = args_->enb.n_prb;
   cell->mbsfn_prb    = args_->enb.n_prb;
+  cell->mbms_dedicated    = args_->stack.embms.mbms_dedicated;
   // PCI not configured yet
 
   phich_cfg_s     phichcfg;

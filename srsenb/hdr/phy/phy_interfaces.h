@@ -77,6 +77,8 @@ struct phy_args_t {
   bool                    pucch_meas_ta       = true;
   uint32_t                nof_prach_threads   = 1;
   bool                    extended_cp         = false;
+  bool                    mbms_dedicated      = false;
+  uint32_t                add_non_mbsfn_sfs   = 0;
   srsran::channel::args_t dl_channel_args;
   srsran::channel::args_t ul_channel_args;
 
