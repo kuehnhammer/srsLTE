@@ -161,7 +161,7 @@ void gw::write_pdu(uint32_t lcid, srsran::unique_byte_buffer_t pdu)
   }
 }
 
-void gw::write_pdu_mch(uint32_t lcid, srsran::unique_byte_buffer_t pdu)
+void gw::write_pdu_mch(uint32_t mch_idx, uint32_t lcid, srsran::unique_byte_buffer_t pdu)
 {
   if (pdu->N_bytes > 2) {
     logger.info(pdu->msg,

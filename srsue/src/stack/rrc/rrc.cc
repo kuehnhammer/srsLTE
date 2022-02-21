@@ -2852,7 +2852,7 @@ bool rrc::has_nr_dc()
 void rrc::add_mrb(uint32_t lcid, uint32_t port)
 {
   gw->add_mch_port(lcid, port);
-  rlc->add_bearer_mrb(lcid);
+  rlc->add_bearer_mrb(0, lcid);
   mac->mch_start_rx(lcid);
   logger.info("Added MRB bearer for lcid:%d", lcid);
 }

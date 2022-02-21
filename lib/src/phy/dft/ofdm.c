@@ -78,7 +78,7 @@ static int ofdm_init_mbsfn_(srsran_ofdm_t* q, srsran_ofdm_cfg_t* cfg, srsran_dft
     case SRSRAN_SCS_15KHZ:
       q->nof_symbols_mbsfn = SRSRAN_CP_NSYMB(SRSRAN_CP_EXT);
       q->nof_re            = cfg->nof_prb * SRSRAN_NRE;
-      q->non_mbsfn_region  = 2;
+      q->non_mbsfn_region  = 1;
       break;
     case SRSRAN_SCS_7KHZ5:
       q->nof_symbols_mbsfn = SRSRAN_CP_SCS_7KHZ5_NSYMB;
@@ -676,7 +676,16 @@ void ofdm_tx_slot_mbsfn(srsran_ofdm_t* q, cf_t* input, cf_t* output)
   uint32_t symbol_sz = q->cfg.symbol_sz;
 
   for (uint32_t i = 0; i < q->nof_symbols_mbsfn; i++) {
-    int cp_len = (i > (q->non_mbsfn_region - 1)) ? SRSRAN_CP_LEN_EXT(symbol_sz) : SRSRAN_CP_LEN_NORM(i, symbol_sz);
+    int cp_len = 0; 
+    if (q->cfg.subcarrier_spacing != SRSRAN_SCS_15KHZ) {
+      cp_len = q->cfg.symbol_sz / 4U;
+    } else {
+      if (SRSRAN_CP_ISNORM(q->cfg.cp)) {
+        cp_len = (i > (q->non_mbsfn_region - 1)) ? SRSRAN_CP_LEN_EXT(symbol_sz) : SRSRAN_CP_LEN_NORM(i, symbol_sz);
+      } else {
+        cp_len = SRSRAN_CP_LEN_EXT(q->cfg.symbol_sz);
+      }
+    }
     memcpy(&q->tmp[q->nof_guards], input, q->nof_re * sizeof(cf_t));
     srsran_dft_run_c(&q->fft_plan, q->tmp, &output[cp_len]);
     input += q->nof_re;

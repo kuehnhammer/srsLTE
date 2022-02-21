@@ -67,7 +67,7 @@ public:
   void     write_pdu_bcch_bch(srsran::unique_byte_buffer_t payload) override {}
   void     write_pdu_bcch_dlsch(uint8_t* payload, uint32_t nof_bytes) override {}
   void     write_pdu_pcch(srsran::unique_byte_buffer_t payload) override {}
-  void     write_pdu_mch(uint32_t lcid, uint8_t* payload, uint32_t nof_bytes) override {}
+  void     write_pdu_mch(uint32_t mch_idx, uint32_t lcid, uint8_t* payload, uint32_t nof_bytes) override {}
 };
 
 class phy_dummy_interface : public phy_interface_rrc_lte

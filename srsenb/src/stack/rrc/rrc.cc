@@ -900,6 +900,8 @@ void rrc::configure_mbsfn_sibs()
   sibs13.notif_cfg.notif_sf_idx = cfg.sibs[12].sib13_v920().notif_cfg_r9.notif_sf_idx_r9;
   sibs13.nof_mbsfn_area_info    = cfg.sibs[12].sib13_v920().mbsfn_area_info_list_r9.size();
   for (uint32_t i = 0; i < sibs13.nof_mbsfn_area_info; i++) {
+    sibs13.mbsfn_area_info_list[i] = srsran::make_mbsfn_area_info(cfg.sibs[12].sib13_v920().mbsfn_area_info_list_r9[i]);
+    /*
     sibs13.mbsfn_area_info_list[i].mbsfn_area_id =
         cfg.sibs[12].sib13_v920().mbsfn_area_info_list_r9[i].mbsfn_area_id_r9;
     sibs13.mbsfn_area_info_list[i].notif_ind        = cfg.sibs[12].sib13_v920().mbsfn_area_info_list_r9[i].notif_ind_r9;
@@ -909,23 +911,24 @@ void rrc::configure_mbsfn_sibs()
                                                           .mcch_cfg_r9.sig_mcs_r9.value;
     sibs13.mbsfn_area_info_list[i].mcch_cfg.sf_alloc_info =
         cfg.sibs[12].sib13_v920().mbsfn_area_info_list_r9[i].mcch_cfg_r9.sf_alloc_info_r9.to_number();
-    sibs13.mbsfn_area_info_list[i].mcch_cfg.mcch_repeat_period =
-        (srsran::mbsfn_area_info_t::mcch_cfg_t::repeat_period_t)cfg.sibs[12]
+    sibs13.mbsfn_area_info_list[i].mcch_cfg.mcch_repeat_period = 
+      from_mcch_repeat_period_r9(cfg.sibs[12]
             .sib13_v920()
             .mbsfn_area_info_list_r9[i]
-            .mcch_cfg_r9.mcch_repeat_period_r9.value;
+            .mcch_cfg_r9.mcch_repeat_period_r9.value);
     sibs13.mbsfn_area_info_list[i].mcch_cfg.mcch_offset =
         cfg.sibs[12].sib13_v920().mbsfn_area_info_list_r9[i].mcch_cfg_r9.mcch_offset_r9;
-    sibs13.mbsfn_area_info_list[i].mcch_cfg.mcch_mod_period =
-        (srsran::mbsfn_area_info_t::mcch_cfg_t::mod_period_t)cfg.sibs[12]
+    sibs13.mbsfn_area_info_list[i].mcch_cfg.mcch_mod_period = 
+      from_mcch_mod_period_r9(cfg.sibs[12]
             .sib13_v920()
             .mbsfn_area_info_list_r9[i]
-            .mcch_cfg_r9.mcch_mod_period_r9.value;
+            .mcch_cfg_r9.mcch_mod_period_r9.value);
     sibs13.mbsfn_area_info_list[i].non_mbsfn_region_len = (srsran::mbsfn_area_info_t::region_len_t)cfg.sibs[12]
                                                               .sib13_v920()
                                                               .mbsfn_area_info_list_r9[i]
                                                               .non_mbsfn_region_len.value;
     sibs13.mbsfn_area_info_list[i].notif_ind = cfg.sibs[12].sib13_v920().mbsfn_area_info_list_r9[i].notif_ind_r9;
+    */
   }
 
   // pack MCCH for transmission and pass relevant MCCH values to PHY/MAC

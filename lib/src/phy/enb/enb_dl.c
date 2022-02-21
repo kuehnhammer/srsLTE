@@ -74,10 +74,12 @@ int srsran_enb_dl_init(srsran_enb_dl_t* q, cf_t* out_buffer[SRSRAN_MAX_PORTS], u
       ERROR("Error creating PCFICH object");
       goto clean_exit;
     }
+    /* [kku]
     if (srsran_phich_init(&q->phich, 0)) {
       ERROR("Error creating PHICH object");
       goto clean_exit;
     }
+    */
     int mbsfn_area_id = 1;
 
     if (srsran_pmch_init(&q->pmch, max_prb, 1)) {
@@ -181,7 +183,7 @@ int srsran_enb_dl_set_cell(srsran_enb_dl_t* q, srsran_cell_t cell)
         return SRSRAN_ERROR;
       }
 
-      srsran_ofdm_set_non_mbsfn_region(&q->ifft_mbsfn, 2);
+      srsran_ofdm_set_non_mbsfn_region(&q->ifft_mbsfn, 1);
 
       if (srsran_pbch_set_cell(&q->pbch, q->cell)) {
         ERROR("Error creating PBCH object");
@@ -191,10 +193,12 @@ int srsran_enb_dl_set_cell(srsran_enb_dl_t* q, srsran_cell_t cell)
         ERROR("Error creating PCFICH object");
         return SRSRAN_ERROR;
       }
+      /* [kku]
       if (srsran_phich_set_cell(&q->phich, &q->regs, q->cell)) {
         ERROR("Error creating PHICH object");
         return SRSRAN_ERROR;
       }
+      */
 
       if (srsran_pdcch_set_cell(&q->pdcch, &q->regs, q->cell)) {
         ERROR("Error creating PDCCH object");

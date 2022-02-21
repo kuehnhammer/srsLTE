@@ -59,7 +59,7 @@ class dummy_rlc : public rlc_interface_rrc
   void reestablish() {}
   void reestablish(uint32_t lcid) {}
   int  add_bearer(uint32_t lcid, const srsran::rlc_config_t& cnfg) { return SRSRAN_SUCCESS; }
-  int  add_bearer_mrb(uint32_t lcid) { return SRSRAN_SUCCESS; }
+  int  add_bearer_mrb(uint32_t mch_idx, uint32_t lcid) { return SRSRAN_SUCCESS; }
   void del_bearer(uint32_t lcid) {}
   void suspend_bearer(uint32_t lcid) {}
   void resume_bearer(uint32_t lcid) {}

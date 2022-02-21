@@ -122,7 +122,7 @@ void rlc::add_bearer_mrb(uint16_t rnti, uint32_t lcid)
 {
   pthread_rwlock_rdlock(&rwlock);
   if (users.count(rnti)) {
-    users[rnti].rlc->add_bearer_mrb(lcid);
+    users[rnti].rlc->add_bearer_mrb(0, lcid);
   }
   pthread_rwlock_unlock(&rwlock);
 }

@@ -494,6 +494,7 @@ int rlc::add_bearer_mrb(uint32_t mch_idx, uint32_t lcid)
       logger.error("Error configuring RLC entity.");
       return SRSRAN_ERROR;
     }
+    rlc_entity->set_bsr_callback(bsr_callback);
     if (not rlc_array_mrb.at(mch_idx).emplace(lcid, std::move(rlc_entity)).second) {
       logger.error("Error inserting RLC entity in to array.");
       return SRSRAN_ERROR;
