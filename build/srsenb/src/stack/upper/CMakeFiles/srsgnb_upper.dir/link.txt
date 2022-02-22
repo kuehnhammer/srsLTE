@@ -1,2 +1,0 @@
-/usr/bin/ar qc libsrsgnb_upper.a CMakeFiles/srsgnb_upper.dir/sdap.cc.o
-/usr/bin/ranlib libsrsgnb_upper.a

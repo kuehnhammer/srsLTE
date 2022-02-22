@@ -1,6 +1,0 @@
-time;nof_ue;dl_brate;ul_brate;proc_rmem;proc_rmem_kB;proc_vmem_kB;sys_mem;system_load;thread_count
-0;2;0.0;0.0;0.0;0;0;0.0;0.0;0;
-1;1;inf;inf;0.0;0;0;0.0;0.0;0;
-2;1;inf;inf;0.0;0;0;0.0;0.0;0;
-3;1;inf;inf;0.0;0;0;0.0;0.0;0;
-#eof
