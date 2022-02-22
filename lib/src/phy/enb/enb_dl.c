@@ -341,7 +341,11 @@ static void put_mib(srsran_enb_dl_t* q)
   uint32_t sfn    = q->dl_sf.tti / 10;
 
   if (sf_idx == 0) {
-    srsran_pbch_mib_pack(&q->cell, sfn, bch_payload);
+    if (q->cell.mbms_dedicated) {
+      srsran_pbch_mib_mbms_pack(&q->cell, sfn, q->cell.additional_non_mbms_frames, bch_payload);
+    } else {
+      srsran_pbch_mib_pack(&q->cell, sfn, bch_payload);
+    }
     srsran_pbch_encode(&q->pbch, bch_payload, q->sf_symbols, sfn % 4);
   }
 }
