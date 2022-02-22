@@ -317,28 +317,39 @@ SRSRAN_API int srsran_refsignal_mbsfn_put_sf(srsran_cell_t cell,
                                              uint32_t      port_id,
                                              cf_t*         cs_pilots,
                                              cf_t*         mbsfn_pilots,
-                                             cf_t*         sf_symbols)
+                                             cf_t*         sf_symbols,
+                                             srsran_scs_t  scs,
+                                             uint32_t      sf_idx)
 {
   uint32_t i, l;
   uint32_t fidx;
 
+
   if (srsran_cell_isvalid(&cell) && srsran_portid_isvalid(port_id) && cs_pilots != NULL && mbsfn_pilots != NULL &&
       sf_symbols != NULL) {
-    // adding CS refs for the non-mbsfn section of the sub-frame
-    fidx = ((srsran_refsignal_cs_v(port_id, 0) + (cell.id % 6)) % 6);
-    for (i = 0; i < 2 * cell.nof_prb; i++) {
-      sf_symbols[SRSRAN_RE_IDX(cell.nof_prb, 0, fidx)] = cs_pilots[SRSRAN_REFSIGNAL_PILOT_IDX(i, 0, cell)];
-      fidx += SRSRAN_NRE / 2; // 1 reference every 6 RE
+
+    if (scs == SRSRAN_SCS_15KHZ) {
+       fidx = ((srsran_refsignal_cs_v(port_id, 0) + (cell.id % 6)) % 6);
+       for (i = 0; i < 2 * cell.nof_prb; i++) {
+          sf_symbols[SRSRAN_RE_IDX(cell.nof_prb, 0, fidx)] = cs_pilots[SRSRAN_REFSIGNAL_PILOT_IDX(i, 0, cell)];
+          fidx += SRSRAN_NRE / 2; // 1 reference every 6 RE
+       } 
     }
 
-    for (l = 0; l < srsran_refsignal_mbsfn_nof_symbols(); l++) {
-      uint32_t nsymbol = srsran_refsignal_mbsfn_nsymbol(l, SRSRAN_SCS_15KHZ);
-      fidx             = srsran_refsignal_mbsfn_fidx(l, SRSRAN_SCS_15KHZ);
-      for (i = 0; i < 6 * cell.nof_prb; i++) {
-        sf_symbols[SRSRAN_RE_IDX(cell.nof_prb, nsymbol, fidx)] =
-            mbsfn_pilots[SRSRAN_REFSIGNAL_PILOT_IDX_MBSFN(i, l, cell, SRSRAN_SCS_15KHZ)];
-        fidx += SRSRAN_NRE / 6;
-      }
+    for (l = 0; l < srsran_refsignal_mbsfn_nof_symbols(scs); l++) {
+       uint32_t nsymbol = srsran_refsignal_mbsfn_nsymbol(l, scs);
+       if (scs == SRSRAN_SCS_1KHZ25) {
+         fidx    = sf_idx%2==0 ? 0 : 3;
+       } else {
+         fidx    = srsran_refsignal_mbsfn_fidx(l, scs);
+       }
+       for (i = 0; i < 24 * cell.nof_prb; i++) {
+         sf_symbols[SRSRAN_RE_IDX(cell.nof_prb, nsymbol, fidx)] =
+         mbsfn_pilots[SRSRAN_REFSIGNAL_PILOT_IDX_MBSFN(i, l, cell, scs)];
+//         fidx += SRSRAN_NRE_SCS_1KHZ25 / 24;
+         fidx += SRSRAN_NRE_SCS(scs) / srsran_refsignal_mbsfn_rs_per_symbol(scs);
+       }
+
     }
 
     return SRSRAN_SUCCESS;

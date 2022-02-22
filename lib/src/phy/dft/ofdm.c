@@ -713,7 +713,9 @@ void srsran_ofdm_tx_sf(srsran_ofdm_t* q)
     }
   } else {
     ofdm_tx_slot_mbsfn(q, q->cfg.in_buffer, q->cfg.out_buffer);
-    ofdm_tx_slot(q, 1);
+    if (q->cfg.subcarrier_spacing != SRSRAN_SCS_1KHZ25) {
+      ofdm_tx_slot(q, 1);
+    } 
   }
   if (isnormal(q->cfg.freq_shift_f)) {
     srsran_vec_prod_ccc(q->cfg.out_buffer, q->shift_buffer, q->cfg.out_buffer, q->sf_sz);

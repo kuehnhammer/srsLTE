@@ -242,9 +242,10 @@ void cc_worker::work_dl(const srsran_dl_sf_cfg_t&            dl_sf_cfg,
     }
   }
 
-  // Put UL grants to resource grid.
-  encode_pdcch_ul(ul_grants.pusch, ul_grants.nof_grants);
-
+  // Put UL grants to resource grid(if necessary) 
+   //   if (dl_sf->csubcarrier_spacing != SRSRAN_SCS_1KHZ25) {
+        encode_pdcch_ul(ul_grants.pusch, ul_grants.nof_grants);
+   //   }
   // Put pending PHICH HARQ ACK/NACK indications into subframe
   encode_phich(ul_grants.phich, ul_grants.nof_phich);
 
