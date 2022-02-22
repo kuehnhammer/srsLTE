@@ -220,6 +220,7 @@ void sf_worker::work_imp()
   dl_sf.tti              = tti_tx_dl;
   dl_sf.sf_type          = sf_type;
   dl_sf.non_mbsfn_region = mbsfn_cfg.non_mbsfn_region_length;
+  dl_sf.subcarrier_spacing = mbsfn_cfg.subcarrier_spacing;
 
   // Prepare for receive ACK for DL grants in t_tx_dl+4
   phy->ue_db.clear_tti_pending_ack(tti_tx_ul);

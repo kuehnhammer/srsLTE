@@ -115,6 +115,10 @@ void cc_worker::init(phy_common* phy_, uint32_t cc_idx_)
     ERROR("Error initiating ENB DL (cc=%d)", cc_idx);
     return;
   }
+  if (srsran_enb_dl_set_mbsfn_subcarrier_spacing(&enb_dl, SRSRAN_SCS_1KHZ25)) {
+    ERROR("Error initiating ENB DL (cc=%d)", cc_idx);
+    return;
+  }
   if (srsran_enb_ul_init(&enb_ul, signal_buffer_rx[0], nof_prb)) {
     ERROR("Error initiating ENB UL");
     return;

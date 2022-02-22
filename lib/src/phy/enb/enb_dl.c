@@ -242,6 +242,21 @@ int srsran_enb_dl_set_cell(srsran_enb_dl_t* q, srsran_cell_t cell)
   return ret;
 }
 
+int srsran_enb_dl_set_mbsfn_subcarrier_spacing(srsran_enb_dl_t* q, srsran_scs_t subcarrier_spacing)
+{
+  int ret = SRSRAN_ERROR_INVALID_INPUTS;
+  if (q != NULL) {
+    ret = SRSRAN_ERROR;
+    if (srsran_ofdm_tx_set_prb_scs(&q->ifft_mbsfn, SRSRAN_CP_EXT, q->cell.mbsfn_prb, subcarrier_spacing)) {
+      ERROR("Error setting MBSFN subcarrier spacing\n");
+      return ret;
+    }
+    q->subcarrier_spacing = subcarrier_spacing;
+    ret                      = SRSRAN_SUCCESS;
+  }
+  return ret;
+}
+
 #ifdef resolve
 void srsran_enb_dl_apply_power_allocation(srsran_enb_dl_t* q)
 {

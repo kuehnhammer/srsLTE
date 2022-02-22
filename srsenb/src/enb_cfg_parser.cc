@@ -366,6 +366,16 @@ int mbsfn_area_info_list_parser::parse(Setting& root)
     return SRSRAN_ERROR;
   }
 
+  if (root["mbsfn_area_info_list"].exists("subcarrier_spacing")) {
+    field_asn1_enum_str<mbsfn_area_info_r9_s::subcarrier_spacing_mbms_r14_e_> scs("subcarrier_spacing",
+        &mbsfn_item->subcarrier_spacing_mbms_r14);
+    if (scs.parse(root["mbsfn_area_info_list"])) {
+      fprintf(stderr, "Error parsing subcarrier_spacing\n");
+      return SRSRAN_ERROR;
+    }
+    mbsfn_item->subcarrier_spacing_mbms_r14_present = true;
+  }
+
   return 0;
 }
 

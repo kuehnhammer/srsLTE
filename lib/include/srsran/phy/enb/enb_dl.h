@@ -86,6 +86,7 @@ typedef struct SRSRAN_API {
 
   uint32_t              nof_common_locations[3];
   srsran_dci_location_t common_locations[3][SRSRAN_MAX_CANDIDATES_COM];
+  srsran_scs_t        subcarrier_spacing;
 
 } srsran_enb_dl_t;
 
@@ -101,6 +102,8 @@ SRSRAN_API int srsran_enb_dl_init(srsran_enb_dl_t* q, cf_t* out_buffer[SRSRAN_MA
 SRSRAN_API void srsran_enb_dl_free(srsran_enb_dl_t* q);
 
 SRSRAN_API int srsran_enb_dl_set_cell(srsran_enb_dl_t* q, srsran_cell_t cell);
+
+SRSRAN_API int srsran_enb_dl_set_mbsfn_subcarrier_spacing(srsran_enb_dl_t* q, srsran_scs_t subcarrier_spacing);
 
 SRSRAN_API bool srsran_enb_dl_location_is_common_ncce(srsran_enb_dl_t* q, const srsran_dci_location_t* loc);
 

@@ -365,9 +365,15 @@ int srsran_ofdm_rx_set_prb_scs_symbol_sz(srsran_ofdm_t* q, srsran_cp_t cp, uint3
 
 int srsran_ofdm_tx_set_prb(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb)
 {
+  return srsran_ofdm_tx_set_prb_scs(q, cp, nof_prb, SRSRAN_SCS_15KHZ);
+}
+
+int srsran_ofdm_tx_set_prb_scs(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb, srsran_scs_t subcarrier_spacing)
+{
   srsran_ofdm_cfg_t cfg = {};
   cfg.cp                = cp;
   cfg.nof_prb           = nof_prb;
+  cfg.subcarrier_spacing = subcarrier_spacing;
   return ofdm_init_mbsfn_(q, &cfg, SRSRAN_DFT_BACKWARD);
 }
 

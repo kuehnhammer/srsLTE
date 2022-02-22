@@ -257,6 +257,7 @@ typedef struct {
   uint8_t mbsfn_mcs;
   bool    enable;
   bool    is_mcch;
+  srsran_scs_t        subcarrier_spacing;
 } srsran_mbsfn_cfg_t;
 
 // Common cell constant properties that require object reconfiguration

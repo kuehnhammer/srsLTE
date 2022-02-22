@@ -278,6 +278,15 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
   srsran::mbsfn_sf_cfg_t*    subfr_cnfg = &mbsfn.mbsfn_subfr_cnfg;
   srsran::mbsfn_area_info_t* area_info  = &mbsfn.mbsfn_area_info;
 
+  switch (area_info->subcarrier_spacing) {
+    case srsran::mbsfn_area_info_t::subcarrier_spacing_t::khz_1dot25:
+      cfg->subcarrier_spacing = SRSRAN_SCS_1KHZ25; break;
+    case srsran::mbsfn_area_info_t::subcarrier_spacing_t::khz_7dot5:
+      cfg->subcarrier_spacing = SRSRAN_SCS_7KHZ5; break;
+    default:
+      cfg->subcarrier_spacing = SRSRAN_SCS_15KHZ; break;
+  }
+
   offset = subfr_cnfg->radioframe_alloc_offset;
   period = enum_to_number(subfr_cnfg->radioframe_alloc_period);
 

@@ -119,6 +119,8 @@ SRSRAN_API int
 srsran_ofdm_rx_init(srsran_ofdm_t* q, srsran_cp_t cp_type, cf_t* in_buffer, cf_t* out_buffer, uint32_t max_prb);
 
 SRSRAN_API int srsran_ofdm_tx_set_prb(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb);
+SRSRAN_API int srsran_ofdm_tx_set_prb_scs(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb, srsran_scs_t scs);
+
 
 SRSRAN_API int srsran_ofdm_rx_set_prb(srsran_ofdm_t* q, srsran_cp_t cp, uint32_t nof_prb);
 
