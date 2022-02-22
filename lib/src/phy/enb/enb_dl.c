@@ -61,6 +61,7 @@ int srsran_enb_dl_init(srsran_enb_dl_t* q, cf_t* out_buffer[SRSRAN_MAX_PORTS], u
     ofdm_cfg.in_buffer  = q->sf_symbols[0];
     ofdm_cfg.out_buffer = out_buffer[0];
     ofdm_cfg.sf_type    = SRSRAN_SF_MBSFN;
+    ofdm_cfg.subcarrier_spacing    = SRSRAN_SCS_1KHZ25;
     if (srsran_ofdm_tx_init_cfg(&q->ifft_mbsfn, &ofdm_cfg)) {
       ERROR("Error initiating FFT");
       goto clean_exit;
