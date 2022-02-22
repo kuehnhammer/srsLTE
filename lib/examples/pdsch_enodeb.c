@@ -863,7 +863,7 @@ int main(int argc, char** argv)
       }
 
       if (mch_table[sf_idx] == 1 && mbsfn_area_id > -1) {
-        srsran_refsignal_mbsfn_put_sf(cell, 0, csr_refs.pilots[0][sf_idx], mbsfn_refs.pilots[0][sf_idx], sf_symbols[0]);
+        srsran_refsignal_mbsfn_put_sf(cell, 0, csr_refs.pilots[0][sf_idx], mbsfn_refs.pilots[0][sf_idx], sf_symbols[0],SRSRAN_SCS_15KHZ,sf_idx);
       } else {
         dl_sf.tti = nf * 10 + sf_idx;
         for (i = 0; i < cell.nof_ports; i++) {

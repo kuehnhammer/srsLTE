@@ -98,7 +98,9 @@ SRSRAN_API int srsran_refsignal_mbsfn_put_sf(srsran_cell_t cell,
                                              uint32_t      port_id,
                                              cf_t*         cs_pilots,
                                              cf_t*         mbsfn_pilots,
-                                             cf_t*         sf_symbols);
+                                             cf_t*         sf_symbols,
+                                             srsran_scs_t  scs,
+                                             uint32_t      sf_idx);
 
 SRSRAN_API int srsran_refsignal_mbsfn_gen_seq(srsran_refsignal_t* q, srsran_cell_t cell, uint32_t N_mbsfn_id, srsran_scs_t scs);
 

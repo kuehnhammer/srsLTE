@@ -100,9 +100,9 @@ static int pmch_cp(srsran_pmch_t* q, cf_t* input, cf_t* output, uint32_t lstart_
  *
  * 36.211 10.3 section 6.3.5
  */
-static int pmch_put(srsran_pmch_t* q, cf_t* symbols, cf_t* sf_symbols, uint32_t lstart)
+static int pmch_put(srsran_pmch_t* q, cf_t* symbols, cf_t* sf_symbols, srsran_scs_t scs, uint32_t lstart)
 {
-  return pmch_cp(q, symbols, sf_symbols, lstart, true, SRSRAN_SCS_15KHZ, 0);
+  return pmch_cp(q, symbols, sf_symbols, lstart, true, scs, 0);
 }
 
 /**
@@ -444,7 +444,7 @@ int srsran_pmch_encode(srsran_pmch_t*      q,
     /* mapping to resource elements */
     uint32_t lstart = SRSRAN_NOF_CTRL_SYMBOLS(q->cell, sf->cfi);
     for (i = 0; i < q->cell.nof_ports; i++) {
-      pmch_put(q, q->symbols[i], sf_symbols[i], lstart);
+      pmch_put(q, q->symbols[i], sf_symbols[i],sf->subcarrier_spacing, lstart);
     }
 
     ret = SRSRAN_SUCCESS;

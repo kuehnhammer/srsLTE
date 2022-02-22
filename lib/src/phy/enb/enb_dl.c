@@ -336,12 +336,12 @@ static void put_sync(srsran_enb_dl_t* q)
   }
 }
 
-static void put_refs(srsran_enb_dl_t* q)
+static void put_refs(srsran_enb_dl_t* q, srsran_dl_sf_cfg_t* dl_sf)
 {
   uint32_t sf_idx = q->dl_sf.tti % 10;
   if (q->dl_sf.sf_type == SRSRAN_SF_MBSFN) {
     srsran_refsignal_mbsfn_put_sf(
-        q->cell, 0, q->csr_signal.pilots[0][sf_idx], q->mbsfnr_signal.pilots[0][sf_idx], q->sf_symbols[0]);
+        q->cell, 0, q->csr_signal.pilots[0][sf_idx], q->mbsfnr_signal.pilots[0][sf_idx], q->sf_symbols[0], dl_sf->subcarrier_spacing, sf_idx);
   } else {
     for (int p = 0; p < q->cell.nof_ports; p++) {
       srsran_refsignal_cs_put_sf(&q->csr_signal, &q->dl_sf, (uint32_t)p, q->sf_symbols[p]);
@@ -377,7 +377,7 @@ void srsran_enb_dl_put_base(srsran_enb_dl_t* q, srsran_dl_sf_cfg_t* dl_sf)
   q->dl_sf = *dl_sf;
   clear_sf(q);
   put_sync(q);
-  put_refs(q);
+  put_refs(q, dl_sf);
   put_mib(q);
   put_pcfich(q);
 }
