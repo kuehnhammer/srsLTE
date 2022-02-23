@@ -260,6 +260,8 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
   sfn = phy_tti / 10;
   sf  = phy_tti % 10;
 
+  if (sfn%4==0 && sf==0) return false;
+
   // Set some defaults
   cfg->mbsfn_area_id           = 0;
   cfg->non_mbsfn_region_length = 1;
@@ -290,45 +292,28 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
   offset = subfr_cnfg->radioframe_alloc_offset;
   period = enum_to_number(subfr_cnfg->radioframe_alloc_period);
 
-  if (subfr_cnfg->nof_alloc_subfrs == srsran::mbsfn_sf_cfg_t::sf_alloc_type_t::one_frame) {
-    if ((sfn % period == offset) && (mch_table[sf] > 0)) {
-      if (sib13_configured) {
-        cfg->mbsfn_area_id           = area_info->mbsfn_area_id;
-        cfg->non_mbsfn_region_length = enum_to_number(area_info->non_mbsfn_region_len);
-        if (mcch_configured) {
-          // Iterate through PMCH configs to see which one applies in the current frame
-          uint32_t frame_alloc_idx = sfn % enum_to_number(mbsfn.mcch.common_sf_alloc_period);
-          uint32_t mbsfn_per_frame = mbsfn.mcch.pmch_info_list[0].sf_alloc_end /
-                                     +enum_to_number(mbsfn.mcch.pmch_info_list[0].mch_sched_period);
-          uint32_t sf_alloc_idx = frame_alloc_idx * mbsfn_per_frame + ((sf < 4) ? sf - 1 : sf - 3);
-          while (!have_mtch_stop) {
-            pthread_cond_wait(&mtch_cvar, &mtch_mutex);
-          }
-          for (uint32_t i = 0; i < mbsfn.mcch.nof_pmch_info; i++) {
-            if (sf_alloc_idx <= mch_period_stop) {
-              cfg->mbsfn_mcs = mbsfn.mcch.pmch_info_list[i].data_mcs;
-              cfg->enable    = true;
-            }
-          }
+  if (sib13_configured) {
+    cfg->mbsfn_area_id           = area_info->mbsfn_area_id;
+    cfg->non_mbsfn_region_length = enum_to_number(area_info->non_mbsfn_region_len);
+    if (mcch_configured) {
+      // Iterate through PMCH configs to see which one applies in the current frame
+      uint32_t frame_alloc_idx = sfn % enum_to_number(mbsfn.mcch.common_sf_alloc_period);
+      uint32_t mbsfn_per_frame = mbsfn.mcch.pmch_info_list[0].sf_alloc_end /
+        +enum_to_number(mbsfn.mcch.pmch_info_list[0].mch_sched_period);
+      uint32_t sf_alloc_idx = frame_alloc_idx * mbsfn_per_frame + ((sf < 4) ? sf - 1 : sf - 3);
+//      while (!have_mtch_stop) {
+//        pthread_cond_wait(&mtch_cvar, &mtch_mutex);
+//      }
+      for (uint32_t i = 0; i < mbsfn.mcch.nof_pmch_info; i++) {
+        if (sf_alloc_idx <= mch_period_stop) {
+          cfg->mbsfn_mcs = mbsfn.mcch.pmch_info_list[i].data_mcs;
+          cfg->enable    = true;
         }
-      }
-      return true;
-    }
-  } else if (subfr_cnfg->nof_alloc_subfrs == srsran::mbsfn_sf_cfg_t::sf_alloc_type_t::four_frames) {
-    uint8_t idx = sfn % period;
-    if ((idx >= offset) && (idx < offset + 4)) {
-      if (mch_table[(idx * 10) + sf] > 0) {
-        if (sib13_configured) {
-          cfg->mbsfn_area_id           = area_info->mbsfn_area_id;
-          cfg->non_mbsfn_region_length = enum_to_number(area_info->non_mbsfn_region_len);
-          // TODO: check for MCCH configuration, set MCS and decode
-        }
-        return true;
       }
     }
   }
+  return true;
 
-  return false;
 }
 
 bool phy_common::is_mbsfn_sf(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)

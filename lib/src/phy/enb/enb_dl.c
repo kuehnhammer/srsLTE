@@ -169,7 +169,7 @@ int srsran_enb_dl_set_cell(srsran_enb_dl_t* q, srsran_cell_t cell)
           return SRSRAN_ERROR;
         }
       }
-      if (srsran_regs_init(&q->regs, q->cell)) {
+      if (srsran_regs_init_opts(&q->regs, q->cell, q->cell.mbms_dedicated ? 0 : 1, false)) {
         ERROR("Error resizing REGs");
         return SRSRAN_ERROR;
       }

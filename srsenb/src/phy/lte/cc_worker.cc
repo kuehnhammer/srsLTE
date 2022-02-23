@@ -130,7 +130,7 @@ void cc_worker::init(phy_common* phy_, uint32_t cc_idx_)
   }
 
   /* Setup SI-RNTI in PHY */
-  add_rnti(SRSRAN_SIRNTI);
+  add_rnti( SRSRAN_SIRNTI_MBMS_DEDICATED);
 
   /* Setup P-RNTI in PHY */
   add_rnti(SRSRAN_PRNTI);

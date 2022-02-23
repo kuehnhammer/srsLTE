@@ -864,7 +864,7 @@ uint32_t rrc::generate_sibs()
         msg_str = msg[msg_index].msg.c1().sys_info().crit_exts.type().to_string();
       }
       fmt::format_to(membuf, "{}, cc={}, idx={}", msg_str, cc_idx, msg_index);
-      log_broadcast_rrc_message(SRSRAN_SIRNTI, *cell_ctxt->sib_buffer.back(), msg[msg_index], srsran::to_c_str(membuf));
+      log_broadcast_rrc_message(SRSRAN_SIRNTI_MBMS_DEDICATED, *cell_ctxt->sib_buffer.back(), msg[msg_index], srsran::to_c_str(membuf));
     }
 
     if (cfg.sibs[6].type() == asn1::rrc::sys_info_r8_ies_s::sib_type_and_info_item_c_::types::sib7) {
@@ -1100,7 +1100,7 @@ void rrc::log_rxtx_pdu_impl(direction_t             dir,
   static const char* dir_str[] = {"Rx", "Tx", "Tx S1AP", "Rx S1AP"};
   fmt::memory_buffer membuf;
   fmt::format_to(membuf, "{} ", dir_str[dir]);
-  if (rnti != SRSRAN_PRNTI and rnti != SRSRAN_SIRNTI) {
+  if (rnti != SRSRAN_PRNTI and rnti != SRSRAN_SIRNTI_MBMS_DEDICATED) {
     if (dir == Tx or dir == Rx) {
       fmt::format_to(membuf, "{} ", srsran::get_srb_name(srsran::lte_lcid_to_srb(lcid)));
     }
