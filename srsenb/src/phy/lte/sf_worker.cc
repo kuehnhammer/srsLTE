@@ -165,6 +165,7 @@ void sf_worker::work_imp()
 
   srsran_mbsfn_cfg_t mbsfn_cfg;
   srsran_sf_t        sf_type = phy->is_mbsfn_sf(&mbsfn_cfg, tti_tx_dl) ? SRSRAN_SF_MBSFN : SRSRAN_SF_NORM;
+//  Error("TTI %d type %s", tti_tx_dl, sf_type == SRSRAN_SF_NORM ? "CAS" : "MBSFN");
 
   // Uplink grants to receive this TTI
   stack_interface_phy_lte::ul_sched_list_t ul_grants = phy->get_ul_grants(tti_rx);
@@ -210,11 +211,11 @@ void sf_worker::work_imp()
   }
 
   // Get UL scheduling for the TX TTI from MAC
-  if (stack->get_ul_sched(tti_tx_ul, ul_grants_tx) < 0) {
-    Error("Getting UL scheduling from MAC");
-    phy->worker_end(context, true, tx_buffer);
-    return;
-  }
+  //if (stack->get_ul_sched(tti_tx_ul, ul_grants_tx) < 0) {
+ //   Error("Getting UL scheduling from MAC");
+ //   phy->worker_end(context, true, tx_buffer);
+ //   return;
+ // }
 
   // Configure DL subframe
   dl_sf.tti              = tti_tx_dl;

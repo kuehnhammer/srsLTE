@@ -68,7 +68,7 @@ void bc_sched::update_si_windows(sf_sched* tti_sched)
     }
 
     if (not pending_sibs[i].is_in_window) {
-      uint32_t sf = 5;
+      uint32_t sf = 0;
       uint32_t x  = 0;
       if (i > 0) {
         x  = (i - 1) * cc_cfg->cfg.si_window_ms;
@@ -110,10 +110,11 @@ void bc_sched::alloc_sibs(sf_sched* tti_sched)
     // Check if subframe index is the correct one for SIB transmission
     uint32_t nof_tx          = (sib_idx > 0) ? SRSRAN_MIN(srsran::ceil_div(cc_cfg->cfg.si_window_ms, 10), 4) : 4;
     uint32_t n_sf            = (tti_sched->get_tti_tx_dl() - pending_sibs[sib_idx].window_start);
-    bool     sib1_flag       = (sib_idx == 0) and (current_sfn % 2) == 0 and current_sf_idx == 5;
-    bool     other_sibs_flag = (sib_idx > 0) and
-                           (n_sf >= (cc_cfg->cfg.si_window_ms / nof_tx) * pending_sibs[sib_idx].n_tx) and
-                           current_sf_idx == 9;
+    bool     sib1_flag       = true;//(sib_idx == 0) and (current_sfn % 4) == 0 and current_sf_idx == 0;
+    bool     other_sibs_flag = false;
+    //(sib_idx > 0) and
+      //                     (n_sf >= (cc_cfg->cfg.si_window_ms / nof_tx) * pending_sibs[sib_idx].n_tx) and
+        //                   current_sf_idx == 9;
     if (not sib1_flag and not other_sibs_flag) {
       continue;
     }
@@ -394,11 +395,11 @@ const cc_sched_result& sched::carrier_sched::generate_tti_result(tti_point tti_r
   }
 
   /* Schedule PHICH */
-  for (auto& ue_pair : *ue_db) {
-    if (tti_sched->alloc_phich(ue_pair.second.get()) == alloc_result::no_grant_space) {
-      break;
-    }
-  }
+//  for (auto& ue_pair : *ue_db) {
+//    if (tti_sched->alloc_phich(ue_pair.second.get()) == alloc_result::no_grant_space) {
+//      break;
+//    }
+//  }
 
   /* Schedule DL control data */
   if (dl_active) {
@@ -406,11 +407,11 @@ const cc_sched_result& sched::carrier_sched::generate_tti_result(tti_point tti_r
     bc_sched_ptr->dl_sched(tti_sched);
 
     /* Schedule RAR */
-    ra_sched_ptr->dl_sched(tti_sched);
+//    ra_sched_ptr->dl_sched(tti_sched);
 
     /* Schedule Msg3 */
-    sf_sched* sf_msg3_sched = get_sf_sched(tti_rx + MSG3_DELAY_MS);
-    ra_sched_ptr->ul_sched(tti_sched, sf_msg3_sched);
+//    sf_sched* sf_msg3_sched = get_sf_sched(tti_rx + MSG3_DELAY_MS);
+//    ra_sched_ptr->ul_sched(tti_sched, sf_msg3_sched);
   }
 
   /* Prioritize PDCCH scheduling for DL and UL data in a RoundRobin fashion */

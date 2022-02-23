@@ -261,7 +261,7 @@ bool generate_sib_dci(sched_interface::dl_sched_bc_t& bc,
 {
   bc           = {};
   int tbs_bits = generate_ra_bc_dci_format1a_common(
-      bc.dci, SRSRAN_SIRNTI, tti_tx_dl, cell_params.cfg.sibs[sib_idx].len, rbg_range, cell_params, current_cfi);
+      bc.dci, SRSRAN_SIRNTI_MBMS_DEDICATED, tti_tx_dl, cell_params.cfg.sibs[sib_idx].len, rbg_range, cell_params, current_cfi);
   if (tbs_bits < 0) {
     return false;
   }
