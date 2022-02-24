@@ -168,7 +168,7 @@ void sf_worker::work_imp()
 //  Error("TTI %d type %s", tti_tx_dl, sf_type == SRSRAN_SF_NORM ? "CAS" : "MBSFN");
 
   // Uplink grants to receive this TTI
-  stack_interface_phy_lte::ul_sched_list_t ul_grants = phy->get_ul_grants(tti_rx);
+//  stack_interface_phy_lte::ul_sched_list_t ul_grants = phy->get_ul_grants(tti_rx);
   // Uplink grants to transmit this tti and receive in the future
   stack_interface_phy_lte::ul_sched_list_t ul_grants_tx = phy->get_ul_grants(tti_tx_ul);
 
@@ -185,14 +185,14 @@ void sf_worker::work_imp()
   ul_sf.tti = tti_rx;
 
   // Set UL grant availability prior to any UL processing
-  if (phy->ue_db.set_ul_grant_available(tti_rx, ul_grants) < SRSRAN_SUCCESS) {
-    Info("Failed setting UL grants. Some grant's RNTI does not exist.");
-  }
+  //if (phy->ue_db.set_ul_grant_available(tti_rx, ul_grants) < SRSRAN_SUCCESS) {
+  //  Info("Failed setting UL grants. Some grant's RNTI does not exist.");
+ // }
 
   // Process UL
-  for (uint32_t cc = 0; cc < cc_workers.size(); cc++) {
-    cc_workers[cc]->work_ul(ul_sf, ul_grants[cc]);
-  }
+//  for (uint32_t cc = 0; cc < cc_workers.size(); cc++) {
+//    cc_workers[cc]->work_ul(ul_sf, ul_grants[cc]);
+//  }
 
   // Get DL scheduling for the TX TTI from MAC
   if (sf_type == SRSRAN_SF_NORM) {
@@ -202,7 +202,7 @@ void sf_worker::work_imp()
       return;
     }
   } else {
-    dl_grants[0].cfi = mbsfn_cfg.non_mbsfn_region_length;
+    dl_grants[0].cfi = 0;//mbsfn_cfg.non_mbsfn_region_length;
     if (stack->get_mch_sched(tti_tx_dl, mbsfn_cfg.is_mcch, dl_grants)) {
       Error("Getting MCH packets from MAC");
       phy->worker_end(context, true, tx_buffer);

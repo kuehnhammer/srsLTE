@@ -365,6 +365,7 @@ void srsran_pbch_mib_mbms_pack(srsran_cell_t* cell, uint32_t sfn, uint32_t addit
   }
   srsran_bit_unpack(bw, &msg, 3);
 
+    DEBUG("Packing MIB MBMS sfn=%d -> %d", sfn, sfn>>4);
   srsran_bit_unpack(sfn >> 4, &msg, 6);
 
   *msg = additional_non_mbsfn_subframes;

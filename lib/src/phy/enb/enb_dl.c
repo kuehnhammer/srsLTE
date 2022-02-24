@@ -44,7 +44,7 @@ int srsran_enb_dl_init(srsran_enb_dl_t* q, cf_t* out_buffer[SRSRAN_MAX_PORTS], u
     bzero(q, sizeof(srsran_enb_dl_t));
 
     for (int i = 0; i < SRSRAN_MAX_PORTS; i++) {
-      q->sf_symbols[i] = srsran_vec_cf_malloc(SRSRAN_SF_LEN_RE(max_prb, SRSRAN_CP_NORM));
+      q->sf_symbols[i] = srsran_vec_cf_malloc(SRSRAN_SF_LEN_RE(max_prb, SRSRAN_CP_EXT));
       if (!q->sf_symbols[i]) {
         perror("malloc");
         goto clean_exit;
@@ -57,7 +57,7 @@ int srsran_enb_dl_init(srsran_enb_dl_t* q, cf_t* out_buffer[SRSRAN_MAX_PORTS], u
     srsran_ofdm_cfg_t ofdm_cfg = {};
     ofdm_cfg.nof_prb           = max_prb;
     ofdm_cfg.cp                = SRSRAN_CP_EXT;
-    ofdm_cfg.normalize         = false;
+    ofdm_cfg.normalize         = true;
     ofdm_cfg.in_buffer  = q->sf_symbols[0];
     ofdm_cfg.out_buffer = out_buffer[0];
     ofdm_cfg.sf_type    = SRSRAN_SF_MBSFN;
@@ -104,7 +104,7 @@ int srsran_enb_dl_init(srsran_enb_dl_t* q, cf_t* out_buffer[SRSRAN_MAX_PORTS], u
       goto clean_exit;
     }
 
-    if (srsran_refsignal_mbsfn_init(&q->mbsfnr_signal, max_prb, SRSRAN_SCS_15KHZ)) {
+    if (srsran_refsignal_mbsfn_init(&q->mbsfnr_signal, max_prb, SRSRAN_SCS_1KHZ25)) {
       ERROR("Error initializing CSR signal (%d)", ret);
       goto clean_exit;
     }
@@ -222,7 +222,7 @@ int srsran_enb_dl_set_cell(srsran_enb_dl_t* q, srsran_cell_t cell)
         return SRSRAN_ERROR;
       }
       int mbsfn_area_id = 1;
-      if (srsran_refsignal_mbsfn_set_cell(&q->mbsfnr_signal, q->cell, mbsfn_area_id, SRSRAN_SCS_15KHZ)) {
+      if (srsran_refsignal_mbsfn_set_cell(&q->mbsfnr_signal, q->cell, mbsfn_area_id, SRSRAN_SCS_1KHZ25)) {
         ERROR("Error initializing MBSFNR signal (%d)", ret);
         return SRSRAN_ERROR;
       }
@@ -329,7 +329,7 @@ static void put_sync(srsran_enb_dl_t* q)
 {
   uint32_t sf_idx = q->dl_sf.tti % 10;
 
-  if (sf_idx == 0 || sf_idx == 5) {
+  if (q->dl_sf.tti%4==0 && sf_idx == 0) {
     for (int p = 0; p < q->cell.nof_ports; p++) {
       srsran_pss_put_slot(q->pss_signal, q->sf_symbols[p], q->cell.nof_prb, q->cell.cp);
       srsran_sss_put_slot(sf_idx ? q->sss_signal5 : q->sss_signal0, q->sf_symbols[p], q->cell.nof_prb, q->cell.cp);
@@ -357,19 +357,23 @@ static void put_mib(srsran_enb_dl_t* q)
   uint32_t sf_idx = q->dl_sf.tti % 10;
   uint32_t sfn    = q->dl_sf.tti / 10;
 
-  if (sf_idx == 0) {
+  if (sfn%4 == 0 && sf_idx == 0) {
     if (q->cell.mbms_dedicated) {
       srsran_pbch_mib_mbms_pack(&q->cell, sfn, q->cell.additional_non_mbms_frames, bch_payload);
     } else {
       srsran_pbch_mib_pack(&q->cell, sfn, bch_payload);
     }
-    srsran_pbch_encode(&q->pbch, bch_payload, q->sf_symbols, sfn % 4);
+    srsran_pbch_encode(&q->pbch, bch_payload, q->sf_symbols, (sfn / 4)%4);
   }
 }
 
 static void put_pcfich(srsran_enb_dl_t* q)
 {
-  srsran_pcfich_encode(&q->pcfich, &q->dl_sf, q->sf_symbols);
+  uint32_t sf_idx = q->dl_sf.tti % 10;
+  uint32_t sfn    = q->dl_sf.tti / 10;
+  if (sfn%4 == 0 && sf_idx == 0) {
+    srsran_pcfich_encode(&q->pcfich, &q->dl_sf, q->sf_symbols);
+  }
 }
 
 void srsran_enb_dl_put_base(srsran_enb_dl_t* q, srsran_dl_sf_cfg_t* dl_sf)

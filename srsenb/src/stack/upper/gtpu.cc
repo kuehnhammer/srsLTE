@@ -418,11 +418,11 @@ int gtpu::init(const gtpu_args_t& gtpu_args, pdcp_interface_gtpu* pdcp_)
   rx_socket_handler->add_socket_handler(fd, srsran::make_sdu_handler(logger, gtpu_queue, rx_callback));
 
   // Start MCH socket if enabled
-  if (args.embms_enable) {
+  //if (args.embms_enable) {
     if (not m1u.init(args.embms_m1u_multiaddr, args.embms_m1u_if_addr)) {
       return SRSRAN_ERROR;
     }
-  }
+ // }
   return SRSRAN_SUCCESS;
 }
 

@@ -286,7 +286,7 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
     case srsran::mbsfn_area_info_t::subcarrier_spacing_t::khz_7dot5:
       cfg->subcarrier_spacing = SRSRAN_SCS_7KHZ5; break;
     default:
-      cfg->subcarrier_spacing = SRSRAN_SCS_15KHZ; break;
+      cfg->subcarrier_spacing = SRSRAN_SCS_1KHZ25; break;
   }
 
   offset = subfr_cnfg->radioframe_alloc_offset;
@@ -296,18 +296,24 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
     cfg->mbsfn_area_id           = area_info->mbsfn_area_id;
     cfg->non_mbsfn_region_length = enum_to_number(area_info->non_mbsfn_region_len);
     if (mcch_configured) {
-      // Iterate through PMCH configs to see which one applies in the current frame
-      uint32_t frame_alloc_idx = sfn % enum_to_number(mbsfn.mcch.common_sf_alloc_period);
-      uint32_t mbsfn_per_frame = mbsfn.mcch.pmch_info_list[0].sf_alloc_end /
-        +enum_to_number(mbsfn.mcch.pmch_info_list[0].mch_sched_period);
-      uint32_t sf_alloc_idx = frame_alloc_idx * mbsfn_per_frame + ((sf < 4) ? sf - 1 : sf - 3);
-//      while (!have_mtch_stop) {
-//        pthread_cond_wait(&mtch_cvar, &mtch_mutex);
-//      }
+
+      while (!have_mtch_stop) {
+        pthread_cond_wait(&mtch_cvar, &mtch_mutex);
+      }
       for (uint32_t i = 0; i < mbsfn.mcch.nof_pmch_info; i++) {
-        if (sf_alloc_idx <= mch_period_stop) {
-          cfg->mbsfn_mcs = mbsfn.mcch.pmch_info_list[i].data_mcs;
-          cfg->enable    = true;
+        unsigned fn_in_scheduling_period =  sfn % enum_to_number(mbsfn.mcch.pmch_info_list[i].mch_sched_period);
+        int sf_idx = fn_in_scheduling_period * 10 + sf - (fn_in_scheduling_period / 4) - 1;
+        if (sf_idx <= mbsfn.mcch.pmch_info_list[i].sf_alloc_end) {
+          if ((i == 0 && fn_in_scheduling_period == 0 && sf == 1) ||
+              (i > 0 && mbsfn.mcch.pmch_info_list[i-1].sf_alloc_end + 1 == sf_idx)) {
+            cfg->mbsfn_mcs = enum_to_number(area_info->mcch_cfg.sig_mcs);
+          } else {
+            cfg->mbsfn_mcs = mbsfn.mcch.pmch_info_list[i].data_mcs;
+          }
+          ERROR("SFN %d SF %d: MCS %d", sfn, sf, cfg->mbsfn_mcs);
+          cfg->enable = true;
+          cfg->non_mbsfn_region_length = 0;
+          break;
         }
       }
     }

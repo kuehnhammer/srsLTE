@@ -100,12 +100,12 @@ void cc_worker::init(phy_common* phy_, uint32_t cc_idx_)
       return;
     }
     srsran_vec_cf_zero(signal_buffer_rx[p], 2 * sf_len);
-    signal_buffer_tx[p] = srsran_vec_cf_malloc(2 * sf_len);
+    signal_buffer_tx[p] = srsran_vec_cf_malloc(3 * 2 * sf_len);
     if (!signal_buffer_tx[p]) {
       ERROR("Error allocating memory");
       return;
     }
-    srsran_vec_cf_zero(signal_buffer_tx[p], 2 * sf_len);
+    srsran_vec_cf_zero(signal_buffer_tx[p], 3 * 2 * sf_len);
   }
   if (srsran_enb_dl_init(&enb_dl, signal_buffer_tx, nof_prb)) {
     ERROR("Error initiating ENB DL (cc=%d)", cc_idx);
@@ -232,6 +232,7 @@ void cc_worker::work_dl(const srsran_dl_sf_cfg_t&            dl_sf_cfg,
 {
   std::lock_guard<std::mutex> lock(mutex);
   dl_sf = dl_sf_cfg;
+  dl_sf.subcarrier_spacing = SRSRAN_SCS_1KHZ25;
 
   // Put base signals (references, PBCH, PCFICH and PSS/SSS) into the resource grid
   srsran_enb_dl_put_base(&enb_dl, &dl_sf);
@@ -248,23 +249,23 @@ void cc_worker::work_dl(const srsran_dl_sf_cfg_t&            dl_sf_cfg,
 
   // Put UL grants to resource grid(if necessary) 
    //   if (dl_sf->csubcarrier_spacing != SRSRAN_SCS_1KHZ25) {
-        encode_pdcch_ul(ul_grants.pusch, ul_grants.nof_grants);
+   //     encode_pdcch_ul(ul_grants.pusch, ul_grants.nof_grants);
    //   }
   // Put pending PHICH HARQ ACK/NACK indications into subframe
-  encode_phich(ul_grants.phich, ul_grants.nof_phich);
+  //encode_phich(ul_grants.phich, ul_grants.nof_phich);
 
   // Generate signal and transmit
   srsran_enb_dl_gen_signal(&enb_dl);
 
   // Scale if cell gain is set
-  float cell_gain_db = phy->get_cell_gain(cc_idx);
+  /*float cell_gain_db = phy->get_cell_gain(cc_idx);
   if (std::isnormal(cell_gain_db)) {
     float    scale  = srsran_convert_dB_to_amplitude(cell_gain_db);
     uint32_t sf_len = SRSRAN_SF_LEN_PRB(enb_dl.cell.nof_prb);
     for (uint32_t i = 0; i < enb_dl.cell.nof_ports; i++) {
       srsran_vec_sc_prod_cfc(signal_buffer_tx[i], scale, signal_buffer_tx[i], sf_len);
     }
-  }
+  }*/
 }
 
 bool cc_worker::decode_pusch_rnti(stack_interface_phy_lte::ul_sched_grant_t& ul_grant,

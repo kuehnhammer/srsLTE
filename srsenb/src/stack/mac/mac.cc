@@ -994,6 +994,7 @@ void mac::write_mcch(const srsran::sib2_mbms_t* sib2_,
   sib2  = *sib2_;
   sib13 = *sib13_;
   memcpy(mcch_payload_buffer, mcch_payload, mcch_payload_length * sizeof(uint8_t));
+  //mcch_payload_buffer[0] = 0x01;
   current_mcch_length     = mcch_payload_length;
 
   unique_rnti_ptr<ue> ue_ptr = make_rnti_obj<ue>(

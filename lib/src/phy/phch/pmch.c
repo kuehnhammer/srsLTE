@@ -100,9 +100,9 @@ static int pmch_cp(srsran_pmch_t* q, cf_t* input, cf_t* output, uint32_t lstart_
  *
  * 36.211 10.3 section 6.3.5
  */
-static int pmch_put(srsran_pmch_t* q, cf_t* symbols, cf_t* sf_symbols, srsran_scs_t scs, uint32_t lstart)
+static int pmch_put(srsran_pmch_t* q, cf_t* symbols, cf_t* sf_symbols, srsran_scs_t scs, uint32_t lstart, uint32_t sf)
 {
-  return pmch_cp(q, symbols, sf_symbols, lstart, true, scs, 0);
+  return pmch_cp(q, symbols, sf_symbols, lstart, true, scs, sf);
 }
 
 /**
@@ -417,13 +417,13 @@ int srsran_pmch_encode(srsran_pmch_t*      q,
       return SRSRAN_ERROR_INVALID_INPUTS;
     }
 
-    INFO("Encoding PMCH SF: %d, Mod %s, NofBits: %d, NofSymbols: %d, NofBitsE: %d, rv_idx: %d",
+    INFO("Encoding PMCH SF: %d, Mod %s, NofBits: %d, NofSymbols: %d, NofBitsE: %d, rv_idx: %d,  area_id %d",
          sf->tti % 10,
          srsran_mod_string(cfg->pdsch_cfg.grant.tb[0].mod),
          cfg->pdsch_cfg.grant.tb[0].tbs,
          cfg->pdsch_cfg.grant.nof_re,
          cfg->pdsch_cfg.grant.tb[0].nof_bits,
-         0);
+         0, cfg->area_id);
 
     // TODO: use tb_encode directly
     if (srsran_dlsch_encode(&q->dl_sch, &cfg->pdsch_cfg, data, q->e)) {
@@ -442,9 +442,9 @@ int srsran_pmch_encode(srsran_pmch_t*      q,
     memcpy(q->symbols[0], q->d, cfg->pdsch_cfg.grant.nof_re * sizeof(cf_t));
 
     /* mapping to resource elements */
-    uint32_t lstart = SRSRAN_NOF_CTRL_SYMBOLS(q->cell, sf->cfi);
+    uint32_t lstart = 0;//SRSRAN_NOF_CTRL_SYMBOLS(q->cell, sf->cfi);
     for (i = 0; i < q->cell.nof_ports; i++) {
-      pmch_put(q, q->symbols[i], sf_symbols[i],sf->subcarrier_spacing, lstart);
+      pmch_put(q, q->symbols[i], sf_symbols[i],sf->subcarrier_spacing, lstart, sf->tti%10);
     }
 
     ret = SRSRAN_SUCCESS;

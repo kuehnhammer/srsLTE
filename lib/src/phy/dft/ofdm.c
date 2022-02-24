@@ -692,6 +692,7 @@ void ofdm_tx_slot_mbsfn(srsran_ofdm_t* q, cf_t* input, cf_t* output)
         cp_len = SRSRAN_CP_LEN_EXT(q->cfg.symbol_sz);
       }
     }
+    DEBUG("i %d cp_len %d non-mbsfn %d nof_re %d symbol_sz %d input %f %f %f %f\n", i, cp_len, q->non_mbsfn_region, q->nof_re, symbol_sz, creal(input[0]), cimag(input[0]), creal(input[1]), cimag(input[1]));
     memcpy(&q->tmp[q->nof_guards], input, q->nof_re * sizeof(cf_t));
     srsran_dft_run_c(&q->fft_plan, q->tmp, &output[cp_len]);
     input += q->nof_re;
@@ -700,8 +701,8 @@ void ofdm_tx_slot_mbsfn(srsran_ofdm_t* q, cf_t* input, cf_t* output)
     output += symbol_sz + cp_len;
 
     /*skip the small section between the non mbms region and the mbms region*/
-    if (i == (q->non_mbsfn_region - 1))
-      output += SRSRAN_NON_MBSFN_REGION_GUARD_LENGTH(q->non_mbsfn_region, symbol_sz);
+//    if (i == (q->non_mbsfn_region - 1))
+//      output += SRSRAN_NON_MBSFN_REGION_GUARD_LENGTH(q->non_mbsfn_region, symbol_sz);
   }
 }
 
@@ -719,7 +720,7 @@ void srsran_ofdm_tx_sf(srsran_ofdm_t* q)
     }
   } else {
     ofdm_tx_slot_mbsfn(q, q->cfg.in_buffer, q->cfg.out_buffer);
-    if (q->cfg.subcarrier_spacing != SRSRAN_SCS_1KHZ25) {
+    if (q->cfg.subcarrier_spacing == SRSRAN_SCS_15KHZ) {
       ofdm_tx_slot(q, 1);
     } 
   }
