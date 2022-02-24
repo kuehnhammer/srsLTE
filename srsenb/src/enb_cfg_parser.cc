@@ -66,11 +66,11 @@ bool contains_value(T value, const std::initializer_list<T>& list)
   return false;
 }
 
-bool sib_is_present(const sched_info_list_l& l, sib_type_e sib_num)
+bool sib_is_present(const sched_info_list_mbms_r14_l& l, sib_type_e sib_num)
 {
   for (uint32_t i = 0; i < l.size(); i++) {
-    for (uint32_t j = 0; j < l[i].sib_map_info.size(); j++) {
-      if (l[i].sib_map_info[j] == sib_num) {
+    for (uint32_t j = 0; j < l[i].sib_map_info_r14.size(); j++) {
+      if (l[i].sib_map_info_r14[j] == sib_num) {
         return true;
       }
     }
@@ -80,19 +80,19 @@ bool sib_is_present(const sched_info_list_l& l, sib_type_e sib_num)
 
 int field_sched_info::parse(libconfig::Setting& root)
 {
-  data->sched_info_list.resize((uint32_t)root.getLength());
-  for (uint32_t i = 0; i < data->sched_info_list.size(); i++) {
-    if (not parse_enum_by_number(data->sched_info_list[i].si_periodicity, "si_periodicity", root[i])) {
+  data->sched_info_list_mbms_r14.resize((uint32_t)root.getLength());
+  for (uint32_t i = 0; i < data->sched_info_list_mbms_r14.size(); i++) {
+    if (not parse_enum_by_number(data->sched_info_list_mbms_r14[i].si_periodicity_r14, "si_periodicity", root[i])) {
       fprintf(stderr, "Missing field si_periodicity in sched_info=%d\n", i);
       return SRSRAN_ERROR;
     }
     if (root[i].exists("si_mapping_info")) {
-      data->sched_info_list[i].sib_map_info.resize((uint32_t)root[i]["si_mapping_info"].getLength());
-      if (data->sched_info_list[i].sib_map_info.size() < ASN1_RRC_MAX_SIB) {
-        for (uint32_t j = 0; j < data->sched_info_list[i].sib_map_info.size(); j++) {
+      data->sched_info_list_mbms_r14[i].sib_map_info_r14.resize((uint32_t)root[i]["si_mapping_info"].getLength());
+      if (data->sched_info_list_mbms_r14[i].sib_map_info_r14.size() < ASN1_RRC_MAX_SIB) {
+        for (uint32_t j = 0; j < data->sched_info_list_mbms_r14[i].sib_map_info_r14.size(); j++) {
           uint32_t sib_index = root[i]["si_mapping_info"][j];
           if (sib_index >= 3 && sib_index <= 13) {
-            data->sched_info_list[i].sib_map_info[j].value = (sib_type_e::options)(sib_index - 3);
+            data->sched_info_list_mbms_r14[i].sib_map_info_r14[j].value = (sib_type_mbms_r14_opts::options)(sib_index - 3);
           } else {
             fprintf(stderr, "Invalid SIB index %d for si_mapping_info=%d in sched_info=%d\n", sib_index, j, i);
             return SRSRAN_ERROR;
@@ -103,7 +103,7 @@ int field_sched_info::parse(libconfig::Setting& root)
         return SRSRAN_ERROR;
       }
     } else {
-      data->sched_info_list[i].sib_map_info.resize(0);
+      data->sched_info_list_mbms_r14[i].sib_map_info_r14.resize(0);
     }
   }
   return 0;
@@ -1677,7 +1677,7 @@ int set_derived_args_nr(all_args_t* args_, rrc_nr_cfg_t* rrc_nr_cfg_, phy_cfg_t*
 
 namespace sib_sections {
 
-int parse_sib1(std::string filename, sib_type1_s* data)
+/*int parse_sib1(std::string filename, sib_type1_s* data)
 {
   parser::section sib1("sib1");
 
@@ -1687,6 +1687,22 @@ int parse_sib1(std::string filename, sib_type1_s* data)
   sib1.add_field(make_asn1_enum_str_parser("cell_barred", &data->cell_access_related_info.cell_barred));
   sib1.add_field(make_asn1_enum_number_parser("si_window_length", &data->si_win_len));
   sib1.add_field(new parser::field<uint8_t>("system_info_value_tag", &data->sys_info_value_tag));
+
+  // sched_info subsection uses a custom field class
+  parser::section sched_info("sched_info");
+  sib1.add_subsection(&sched_info);
+  sched_info.add_field(new field_sched_info(data));
+
+  // Run parser with single section
+  return parser::parse_section(std::move(filename), &sib1);
+}*/
+
+int parse_sib1_mbms(std::string filename, sib_type1_mbms_r14_s* data)
+{
+  parser::section sib1("sib1");
+
+  sib1.add_field(make_asn1_enum_number_parser("si_window_length", &data->si_win_len_r14));
+  sib1.add_field(new parser::field<uint8_t>("system_info_value_tag", &data->sys_info_value_tag_r14));
 
   // sched_info subsection uses a custom field class
   parser::section sched_info("sched_info");
@@ -2052,8 +2068,8 @@ int parse_sibs(all_args_t* args_, rrc_cfg_t* rrc_cfg_, srsenb::phy_cfg_t* phy_co
   sib_type9_s*     sib9  = &rrc_cfg_->sibs[8].set_sib9();
   sib_type13_r9_s* sib13 = &rrc_cfg_->sibs[12].set_sib13_v920();
 
-  sib_type1_s* sib1 = &rrc_cfg_->sib1;
-  if (sib_sections::parse_sib1(args_->enb_files.sib_config, sib1) != SRSRAN_SUCCESS) {
+  sib_type1_mbms_r14_s* sib1 = &rrc_cfg_->sib1;
+  if (sib_sections::parse_sib1_mbms(args_->enb_files.sib_config, sib1) != SRSRAN_SUCCESS) {
     return SRSRAN_ERROR;
   }
 
@@ -2068,16 +2084,16 @@ int parse_sibs(all_args_t* args_, rrc_cfg_t* rrc_cfg_, srsenb::phy_cfg_t* phy_co
     ERROR("The provided mnc=%d is not valid", args_->stack.s1ap.mcc);
     return SRSRAN_ERROR;
   }
-  sib_type1_s::cell_access_related_info_s_* cell_access = &sib1->cell_access_related_info;
-  cell_access->plmn_id_list.resize(1);
+  sib_type1_mbms_r14_s::cell_access_related_info_r14_s_* cell_access = &sib1->cell_access_related_info_r14;
+  cell_access->plmn_id_list_r14.resize(1);
   srsran::plmn_id_t plmn;
   if (plmn.from_string(mcc_str + mnc_str) == SRSRAN_ERROR) {
     ERROR("Could not convert %s to a plmn_id", (mcc_str + mnc_str).c_str());
     return SRSRAN_ERROR;
   }
-  srsran::to_asn1(&cell_access->plmn_id_list[0].plmn_id, plmn);
-  cell_access->plmn_id_list[0].cell_reserved_for_oper = plmn_id_info_s::cell_reserved_for_oper_e_::not_reserved;
-  sib1->cell_sel_info.q_rx_lev_min_offset             = 0;
+  srsran::to_asn1(&cell_access->plmn_id_list_r14[0], plmn);
+  //cell_access->plmn_id_list[0].cell_reserved_for_oper = plmn_id_info_s::cell_reserved_for_oper_e_::not_reserved;
+  //sib1->cell_sel_info.q_rx_lev_min_offset             = 0;
 
   // Generate SIB2
   if (sib_sections::parse_sib2(args_->enb_files.sib_config, sib2) != SRSRAN_SUCCESS) {
@@ -2097,41 +2113,41 @@ int parse_sibs(all_args_t* args_, rrc_cfg_t* rrc_cfg_, srsenb::phy_cfg_t* phy_co
     sib2->mbsfn_sf_cfg_list.resize(0);
   } else {
     // verify SIB13 is available
-    if (not sib_is_present(sib1->sched_info_list, sib_type_e::sib_type13_v920)) {
+    if (not sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type13_v920)) {
       fprintf(stderr, "SIB13 not present in sched_info.\n");
       return SRSRAN_ERROR;
     }
   }
 
   // Generate SIB3 if defined in mapping info
-  if (sib_is_present(sib1->sched_info_list, sib_type_e::sib_type3)) {
+  if (sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type3)) {
     if (sib_sections::parse_sib3(args_->enb_files.sib_config, sib3) != SRSRAN_SUCCESS) {
       return SRSRAN_ERROR;
     }
   }
 
   // Generate SIB4 if defined in mapping info
-  if (sib_is_present(sib1->sched_info_list, sib_type_e::sib_type4)) {
+  if (sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type4)) {
     if (sib_sections::parse_sib4(args_->enb_files.sib_config, sib4) != SRSRAN_SUCCESS) {
       return SRSRAN_ERROR;
     }
   }
 
   // Generate SIB7 if defined in mapping info
-  if (sib_is_present(sib1->sched_info_list, sib_type_e::sib_type7)) {
+  if (sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type7)) {
     if (sib_sections::parse_sib7(args_->enb_files.sib_config, sib7) != SRSRAN_SUCCESS) {
       return SRSRAN_ERROR;
     }
   }
 
   // Generate SIB9 if defined in mapping info
-  if (sib_is_present(sib1->sched_info_list, sib_type_e::sib_type9)) {
+  if (sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type9)) {
     if (sib_sections::parse_sib9(args_->enb_files.sib_config, sib9) != SRSRAN_SUCCESS) {
       return SRSRAN_ERROR;
     }
   }
 
-  if (sib_is_present(sib1->sched_info_list, sib_type_e::sib_type13_v920)) {
+  if (sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type13_v920)) {
     if (sib_sections::parse_sib13(args_->enb_files.sib_config, sib13) != SRSRAN_SUCCESS) {
       return SRSRAN_ERROR;
     }

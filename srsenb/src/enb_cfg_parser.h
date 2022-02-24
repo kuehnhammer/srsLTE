@@ -115,12 +115,13 @@ private:
 class field_sched_info final : public parser::field_itf
 {
 public:
-  explicit field_sched_info(asn1::rrc::sib_type1_s* data_) { data = data_; }
+  //explicit field_sched_info(asn1::rrc::sib_type1_s* data_) { data = data_; }
+  explicit field_sched_info(asn1::rrc::sib_type1_mbms_r14_s* data_) { data = data_; }
   int         parse(Setting& root) override;
   const char* get_name() override { return "sched_info"; }
 
 private:
-  asn1::rrc::sib_type1_s* data;
+  asn1::rrc::sib_type1_mbms_r14_s* data;
 };
 
 class field_intra_neigh_cell_list final : public parser::field_itf

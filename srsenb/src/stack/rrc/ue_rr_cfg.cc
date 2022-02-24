@@ -439,7 +439,7 @@ void fill_scells_reconf(asn1::rrc::rrc_conn_recfg_r8_ies_s&  recfg_r8,
   for (size_t ue_cc_idx = 1; ue_cc_idx < ue_cell_list.nof_cells(); ++ue_cc_idx) {
     const ue_cell_ded&     scell     = *ue_cell_list.get_ue_cc_idx(ue_cc_idx);
     const enb_cell_common& scell_cfg = *scell.cell_common;
-    const sib_type1_s&     cell_sib1 = scell_cfg.sib1;
+    const sib_type1_mbms_r14_s&     cell_sib1 = scell_cfg.sib1;
     const sib_type2_s&     cell_sib2 = scell_cfg.sib2;
 
     scell_to_add_mod_r10_s& asn1cell              = target_scells[ue_cc_idx - 1];
@@ -460,8 +460,8 @@ void fill_scells_reconf(asn1::rrc::rrc_conn_recfg_r8_ies_s&  recfg_r8,
     auto& ul_cfg                                             = asn1cell.rr_cfg_common_scell_r10.ul_cfg_r10;
     ul_cfg.ul_freq_info_r10.ul_carrier_freq_r10_present      = true;
     ul_cfg.ul_freq_info_r10.ul_carrier_freq_r10              = scell_cfg.cell_cfg.ul_earfcn;
-    ul_cfg.p_max_r10_present                                 = cell_sib1.p_max_present;
-    ul_cfg.p_max_r10                                         = cell_sib1.p_max;
+    ul_cfg.p_max_r10_present                                 = true;//cell_sib1.p_max_present;
+    ul_cfg.p_max_r10                                         = 0;//cell_sib1.p_max;
     ul_cfg.ul_freq_info_r10.add_spec_emission_scell_r10      = 1;
     ul_cfg.ul_pwr_ctrl_common_scell_r10.p0_nominal_pusch_r10 = cc_cfg_sib.ul_pwr_ctrl_common.p0_nominal_pusch;
     ul_cfg.ul_pwr_ctrl_common_scell_r10.alpha_r10.value      = cc_cfg_sib.ul_pwr_ctrl_common.alpha;

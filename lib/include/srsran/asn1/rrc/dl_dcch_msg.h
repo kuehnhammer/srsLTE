@@ -32,7 +32,7 @@
 #include "security.h"
 #include "si.h"
 #include "uecap.h"
-
+#include "bcch_msg.h"
 namespace asn1 {
 namespace rrc {
 

@@ -33,6 +33,7 @@
 #include "rrc/ho_cmd.h"
 #include "rrc/ul_ccch_msg.h"
 #include "rrc/ul_dcch_msg.h"
+#include "srsran/asn1/rrc/bcch_msg.h"
 
 namespace asn1 {
 namespace rrc {
