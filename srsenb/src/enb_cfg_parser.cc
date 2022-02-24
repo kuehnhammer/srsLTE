@@ -2058,6 +2058,29 @@ int parse_sib13(std::string filename, sib_type13_r9_s* data)
   return parser::parse_section(std::move(filename), &sib13);
 }
 
+int parse_sib13_r14(std::string filename, sib_type13_r9_s* data)
+{
+  parser::section sib13("sib13");
+
+  sib13.add_field(make_asn1_seqof_size_parser("mbsfn_area_info_list_size", &data->mbsfn_area_info_list_r9));
+
+  parser::section mbsfn_notification_config("mbsfn_notification_config");
+  sib13.add_subsection(&mbsfn_notification_config);
+
+  mbsfn_notification_config.add_field(
+      make_asn1_enum_str_parser("mbsfn_notification_repetition_coeff", &data->notif_cfg_r9.notif_repeat_coeff_r9));
+
+  mbsfn_notification_config.add_field(
+      new parser::field<uint8>("mbsfn_notification_offset", &data->notif_cfg_r9.notif_offset_r9));
+
+  mbsfn_notification_config.add_field(
+      new parser::field<uint8>("mbsfn_notification_sf_index", &data->notif_cfg_r9.notif_sf_idx_r9));
+
+  sib13.add_field(new mbsfn_area_info_list_parser(&data->mbsfn_area_info_list_r9, nullptr));
+
+  return parser::parse_section(std::move(filename), &sib13);
+}
+
 int parse_sibs(all_args_t* args_, rrc_cfg_t* rrc_cfg_, srsenb::phy_cfg_t* phy_config_common)
 {
   // TODO: Leave 0 blank for now
@@ -2148,7 +2171,7 @@ int parse_sibs(all_args_t* args_, rrc_cfg_t* rrc_cfg_, srsenb::phy_cfg_t* phy_co
   }
 
   if (sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type13_v920)) {
-    if (sib_sections::parse_sib13(args_->enb_files.sib_config, sib13) != SRSRAN_SUCCESS) {
+    if (sib_sections::parse_sib13(args_->enb_files.sib_config, &sib1->sib_type13_r14) != SRSRAN_SUCCESS) {
       return SRSRAN_ERROR;
     }
   }
