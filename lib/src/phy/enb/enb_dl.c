@@ -363,7 +363,7 @@ static void put_mib(srsran_enb_dl_t* q)
     } else {
       srsran_pbch_mib_pack(&q->cell, sfn, bch_payload);
     }
-    srsran_pbch_encode(&q->pbch, bch_payload, q->sf_symbols, (sfn / 4)%4);
+    srsran_pbch_encode(&q->pbch, bch_payload, q->sf_symbols, (sfn / 16) % 4);
   }
 }
 
