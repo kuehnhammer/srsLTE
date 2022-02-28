@@ -309,7 +309,7 @@ bool rrc::ue::rrc_mobility::start_ho_preparation(uint32_t target_eci,
                                                  bool     fwd_direct_path_available)
 {
   srsran::plmn_id_t target_plmn =
-      srsran::make_plmn_id_t(rrc_enb->cfg.sib1.cell_access_related_info.plmn_id_list[0].plmn_id);
+      srsran::make_plmn_id_t(rrc_enb->cfg.sib1.cell_access_related_info_r14.plmn_id_list_r14[0]);
   const ue_cell_ded*     src_cell_ded = rrc_ue->ue_cell_list.get_ue_cc_idx(UE_PCELL_CC_IDX);
   const enb_cell_common* src_cell_cfg = src_cell_ded->cell_common;
 
@@ -389,7 +389,7 @@ bool rrc::ue::rrc_mobility::start_ho_preparation(uint32_t target_eci,
   hoprep_r8.as_context.reest_info.source_pci = src_cell_cfg->cell_cfg.pci;
   hoprep_r8.as_context.reest_info.target_cell_short_mac_i.from_number(
       rrc_details::compute_mac_i(rrc_ue->rnti,
-                                 src_cell_cfg->sib1.cell_access_related_info.cell_id.to_number(),
+                                 src_cell_cfg->sib1.cell_access_related_info_r14.cell_id_r14.to_number(),
                                  src_cell_cfg->cell_cfg.pci,
                                  rrc_ue->ue_security_cfg.get_as_sec_cfg().integ_algo,
                                  rrc_ue->ue_security_cfg.get_as_sec_cfg().k_rrc_int.data()));
@@ -531,7 +531,7 @@ void rrc::ue::rrc_mobility::fill_mobility_reconf_common(asn1::rrc::dl_dcch_msg_s
   mob_info.rr_cfg_common.ul_pwr_ctrl_common_present = true;
   mob_info.rr_cfg_common.ul_pwr_ctrl_common         = target_cell.sib2.rr_cfg_common.ul_pwr_ctrl_common;
   mob_info.rr_cfg_common.p_max_present              = true;
-  mob_info.rr_cfg_common.p_max                      = rrc_enb->cfg.sib1.p_max;
+  mob_info.rr_cfg_common.p_max                      = 0; //rrc_enb->cfg.sib1.p_max;
   mob_info.rr_cfg_common.ul_cp_len                  = target_cell.sib2.rr_cfg_common.ul_cp_len;
 
   mob_info.carrier_freq_present = false; // same frequency handover for now
