@@ -339,7 +339,7 @@ static float estimate_noise_pilots(srsran_chest_dl_t* q, srsran_dl_sf_cfg_t* sf,
   uint32_t    count     = 0;
   uint32_t    npilots   = (ch_mode == SRSRAN_SF_MBSFN) ? SRSRAN_REFSIGNAL_NUM_SF_MBSFN(q->cell.nof_prb, port_id)
                                                        : srsran_refsignal_cs_nof_re(&q->csr_refs, sf, port_id);
-  uint32_t    nsymbols  = (ch_mode == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_nof_symbols()
+  uint32_t    nsymbols  = (ch_mode == SRSRAN_SF_MBSFN) ? srsran_refsignal_mbsfn_nof_symbols() + (sf->subcarrier_spacing == SRSRAN_SCS_15KHZ ? 1 : 0)
                                                        : srsran_refsignal_cs_nof_symbols(&q->csr_refs, sf, port_id);
   if (nsymbols == 0) {
     ERROR("Invalid number of CRS symbols\n");
