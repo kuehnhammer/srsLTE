@@ -47,11 +47,11 @@ enb_cell_common_list::enb_cell_common_list(const rrc_cfg_t& cfg_) : cfg(cfg_)
     // Set Cell SIB1
     new_cell->sib1 = cfg.sib1;
     // Update cellId
-    sib_type1_s::cell_access_related_info_s_* cell_access = &new_cell->sib1.cell_access_related_info;
-    cell_access->cell_id.from_number((cfg.enb_id << 8u) + new_cell->cell_cfg.cell_id);
-    cell_access->tac.from_number(new_cell->cell_cfg.tac);
+    sib_type1_mbms_r14_s::cell_access_related_info_r14_s_* cell_access = &new_cell->sib1.cell_access_related_info_r14;
+    cell_access->cell_id_r14.from_number((cfg.enb_id << 8u) + new_cell->cell_cfg.cell_id);
+    cell_access->tac_r14.from_number(new_cell->cell_cfg.tac);
     // Update DL EARFCN
-    new_cell->sib1.freq_band_ind = (uint8_t)srsran_band_get_band(new_cell->cell_cfg.dl_earfcn);
+    new_cell->sib1.freq_band_ind_r14 = (uint8_t)srsran_band_get_band(new_cell->cell_cfg.dl_earfcn);
 
     // Set Cell SIB2
     // update PRACH root seq index for this cell

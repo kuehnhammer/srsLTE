@@ -32,7 +32,7 @@ namespace srsenb {
 struct enb_cell_common {
   uint32_t                                  enb_cc_idx = 0;
   asn1::rrc::mib_s                          mib;
-  asn1::rrc::sib_type1_s                    sib1;
+  asn1::rrc::sib_type1_mbms_r14_s           sib1;
   asn1::rrc::sib_type2_s                    sib2;
   const cell_cfg_t&                         cell_cfg;
   std::vector<srsran::unique_byte_buffer_t> sib_buffer; ///< Packed SIBs for given CC

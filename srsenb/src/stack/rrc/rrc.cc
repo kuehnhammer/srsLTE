@@ -741,12 +741,12 @@ void rrc::config_mac()
       if (i == 0) {
         item.sibs[i].period_rf = 8; // SIB1 is always 8 rf
       } else {
-        item.sibs[i].period_rf = cfg.sib1.sched_info_list[i - 1].si_periodicity.to_number();
+        item.sibs[i].period_rf = cfg.sib1.sched_info_list_mbms_r14[i - 1].si_periodicity_r14.to_number();
       }
     }
     item.prach_config        = cfg.sibs[1].sib2().rr_cfg_common.prach_cfg.prach_cfg_info.prach_cfg_idx;
     item.prach_nof_preambles = cfg.sibs[1].sib2().rr_cfg_common.rach_cfg_common.preamb_info.nof_ra_preambs.to_number();
-    item.si_window_ms        = cfg.sib1.si_win_len.to_number();
+    item.si_window_ms        = cfg.sib1.si_win_len_r14.to_number();
     item.prach_rar_window =
         cfg.sibs[1].sib2().rr_cfg_common.rach_cfg_common.ra_supervision_info.ra_resp_win_size.to_number();
     item.prach_freq_offset    = cfg.sibs[1].sib2().rr_cfg_common.prach_cfg.prach_cfg_info.prach_freq_offset;
@@ -805,8 +805,8 @@ void rrc::config_mac()
 uint32_t rrc::generate_sibs()
 {
   // nof_messages includes SIB2 by default, plus all configured SIBs
-  uint32_t           nof_messages = 1 + cfg.sib1.sched_info_list.size();
-  sched_info_list_l& sched_info   = cfg.sib1.sched_info_list;
+  uint32_t           nof_messages = 1 + cfg.sib1.sched_info_list_mbms_r14.size();
+  sched_info_list_mbms_r14_l& sched_info   = cfg.sib1.sched_info_list_mbms_r14;
 
   // Store configs,SIBs in common cell ctxt list
   cell_common_list.reset(new enb_cell_common_list{cfg});
@@ -816,18 +816,18 @@ uint32_t rrc::generate_sibs()
     enb_cell_common* cell_ctxt = cell_common_list->get_cc_idx(cc_idx);
     // msg is array of SI messages, each SI message msg[i] may contain multiple SIBs
     // all SIBs in a SI message msg[i] share the same periodicity
-    asn1::dyn_array<bcch_dl_sch_msg_s> msg(nof_messages + 1);
+    asn1::dyn_array<bcch_dl_sch_msg_mbms_s> msg(nof_messages + 1);
 
     // Copy SIB1 to first SI message
-    msg[0].msg.set_c1().set_sib_type1() = cell_ctxt->sib1;
+    msg[0].msg.set_c1().set_sib_type1_mbms_r14() = cell_ctxt->sib1;
 
     // Copy rest of SIBs
     for (uint32_t sched_info_elem = 0; sched_info_elem < nof_messages - 1; sched_info_elem++) {
       uint32_t msg_index = sched_info_elem + 1; // first msg is SIB1, therefore start with second
 
-      msg[msg_index].msg.set_c1().set_sys_info().crit_exts.set_sys_info_r8();
+      msg[msg_index].msg.set_c1().set_sys_info_mbms_r14().crit_exts.set_sys_info_r8();
       sys_info_r8_ies_s::sib_type_and_info_l_& sib_list =
-          msg[msg_index].msg.c1().sys_info().crit_exts.sys_info_r8().sib_type_and_info;
+          msg[msg_index].msg.c1().sys_info_mbms_r14().crit_exts.sys_info_r8().sib_type_and_info;
 
       // SIB2 always in second SI message
       if (msg_index == 1) {
@@ -837,7 +837,7 @@ uint32_t rrc::generate_sibs()
       }
 
       // Add other SIBs to this message, if any
-      for (auto& mapping_enum : sched_info[sched_info_elem].sib_map_info) {
+      for (auto& mapping_enum : sched_info[sched_info_elem].sib_map_info_r14) {
         sib_list.push_back(cfg.sibs[(int)mapping_enum + 2]);
       }
     }
@@ -860,8 +860,8 @@ uint32_t rrc::generate_sibs()
       // Log SIBs in JSON format
       fmt::memory_buffer membuf;
       const char*        msg_str = msg[msg_index].msg.c1().type().to_string();
-      if (msg[msg_index].msg.c1().type().value != asn1::rrc::bcch_dl_sch_msg_type_c::c1_c_::types_opts::sib_type1) {
-        msg_str = msg[msg_index].msg.c1().sys_info().crit_exts.type().to_string();
+      if (msg[msg_index].msg.c1().type().value != asn1::rrc::bcch_dl_sch_msg_type_mbms_r14_c::c1_c_::types_opts::sib_type1_mbms_r14) {
+        msg_str = msg[msg_index].msg.c1().sys_info_mbms_r14().crit_exts.type().to_string();
       }
       fmt::format_to(membuf, "{}, cc={}, idx={}", msg_str, cc_idx, msg_index);
       log_broadcast_rrc_message(SRSRAN_SIRNTI_MBMS_DEDICATED, *cell_ctxt->sib_buffer.back(), msg[msg_index], srsran::to_c_str(membuf));

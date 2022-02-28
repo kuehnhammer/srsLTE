@@ -67,7 +67,7 @@ struct rrc_endc_cfg_t {
 struct rrc_cfg_t {
   uint32_t enb_id; ///< Required to pack SIB1
   // Per eNB SIBs
-  asn1::rrc::sib_type1_s     sib1;
+  asn1::rrc::sib_type1_mbms_r14_s     sib1;
   asn1::rrc::sib_info_item_c sibs[ASN1_RRC_MAX_SIB];
   asn1::rrc::mac_main_cfg_s  mac_cnfg;
 

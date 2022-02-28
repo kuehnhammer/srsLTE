@@ -268,6 +268,12 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
   cfg->mbsfn_mcs               = 2;
   cfg->enable                  = false;
   cfg->is_mcch                 = false;
+
+  // CAS subframe case.
+  if (sfn % 4 == 0 && sf == 0){
+    printf("CAS SUBFRAME\n");
+    return false;
+  }
   // Check for MCCH
   if (is_mcch_subframe(cfg, phy_tti)) {
     return true;
@@ -319,7 +325,6 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
     }
   }
   return true;
-
 }
 
 bool phy_common::is_mbsfn_sf(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
