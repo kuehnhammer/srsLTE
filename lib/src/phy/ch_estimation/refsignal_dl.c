@@ -345,8 +345,8 @@ SRSRAN_API int srsran_refsignal_mbsfn_put_sf(srsran_cell_t cell,
        }
        for (i = 0; i < srsran_refsignal_mbsfn_rs_per_symbol(scs) * cell.nof_prb; i++) {
          sf_symbols[SRSRAN_RE_IDX_MBSFN(cell.nof_prb, nsymbol, fidx, scs)] =
-         mbsfn_pilots[SRSRAN_REFSIGNAL_PILOT_IDX_MBSFN(i, l, cell, scs)];
-//         fidx += SRSRAN_NRE_SCS_1KHZ25 / 24;
+          mbsfn_pilots[SRSRAN_REFSIGNAL_PILOT_IDX_MBSFN(i, l, cell, scs)];
+
          fidx += SRSRAN_NRE_SCS(scs) / srsran_refsignal_mbsfn_rs_per_symbol(scs);
        }
 

@@ -35,7 +35,7 @@
 #include "srsran/phy/utils/debug.h"
 #include "srsran/phy/utils/vector.h"
 
-#define MAX_PMCH_RE (2 * SRSRAN_CP_EXT_NSYMB * 12)
+#define MAX_PMCH_RE(scs) (SRSRAN_MBSFN_NOF_SLOTS(scs) * SRSRAN_MBSFN_NOF_SYMBOLS(scs) * SRSRAN_NRE_SCS(scs))
 
 const static srsran_mod_t modulations[4] = {SRSRAN_MOD_BPSK, SRSRAN_MOD_QPSK, SRSRAN_MOD_16QAM, SRSRAN_MOD_64QAM};
 
@@ -127,7 +127,7 @@ int srsran_pmch_init(srsran_pmch_t* q, uint32_t max_prb, uint32_t nof_rx_antenna
 
     q->cell.nof_prb    = max_prb;
     q->cell.nof_ports  = 1;
-    q->max_re          = max_prb * MAX_PMCH_RE;
+    q->max_re          = max_prb * MAX_PMCH_RE(SRSRAN_SCS_1KHZ25);
     q->nof_rx_antennas = nof_rx_antennas;
 
     INFO("Init PMCH: %d PRBs, max_symbols: %d", max_prb, q->max_re);
@@ -232,7 +232,7 @@ int srsran_pmch_set_cell(srsran_pmch_t* q, srsran_cell_t cell)
 
   if (q != NULL && srsran_cell_isvalid(&cell)) {
     q->cell   = cell;
-    q->max_re = q->cell.nof_prb * MAX_PMCH_RE;
+    q->max_re = q->cell.nof_prb * MAX_PMCH_RE(SRSRAN_SCS_1KHZ25);
 
     INFO("PMCH: Cell config PCI=%d, %d ports, %d PRBs, max_symbols: %d",
          q->cell.nof_ports,

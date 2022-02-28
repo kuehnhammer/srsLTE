@@ -28,6 +28,7 @@
 #include "srsran/phy/common/sequence.h"
 #include "srsran/phy/utils/debug.h"
 
+#define FORCE_STANDARD_RATE
 #ifdef FORCE_STANDARD_RATE
 static bool use_standard_rates = true;
 #else
