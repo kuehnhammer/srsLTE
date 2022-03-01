@@ -86,25 +86,25 @@ int field_sched_info::parse(libconfig::Setting& root)
       fprintf(stderr, "Missing field si_periodicity in sched_info=%d\n", i);
       return SRSRAN_ERROR;
     }
-    if (root[i].exists("si_mapping_info")) {
-      data->sched_info_list_mbms_r14[i].sib_map_info_r14.resize((uint32_t)root[i]["si_mapping_info"].getLength());
-      if (data->sched_info_list_mbms_r14[i].sib_map_info_r14.size() < ASN1_RRC_MAX_SIB) {
-        for (uint32_t j = 0; j < data->sched_info_list_mbms_r14[i].sib_map_info_r14.size(); j++) {
-          uint32_t sib_index = root[i]["si_mapping_info"][j];
-          if (sib_index >= 3 && sib_index <= 13) {
-            data->sched_info_list_mbms_r14[i].sib_map_info_r14[j].value = (sib_type_mbms_r14_opts::options)(sib_index - 3);
-          } else {
-            fprintf(stderr, "Invalid SIB index %d for si_mapping_info=%d in sched_info=%d\n", sib_index, j, i);
-            return SRSRAN_ERROR;
-          }
-        }
-      } else {
-        fprintf(stderr, "Number of si_mapping_info values exceeds maximum (%d)\n", ASN1_RRC_MAX_SIB);
-        return SRSRAN_ERROR;
-      }
-    } else {
+//    if (root[i].exists("si_mapping_info")) {
+//      data->sched_info_list_mbms_r14[i].sib_map_info_r14.resize((uint32_t)root[i]["si_mapping_info"].getLength());
+//      if (data->sched_info_list_mbms_r14[i].sib_map_info_r14.size() < ASN1_RRC_MAX_SIB) {
+//        for (uint32_t j = 0; j < data->sched_info_list_mbms_r14[i].sib_map_info_r14.size(); j++) {
+//          uint32_t sib_index = root[i]["si_mapping_info"][j];
+//          if (sib_index >= 3 && sib_index <= 13) {
+//            data->sched_info_list_mbms_r14[i].sib_map_info_r14[j].value = (sib_type_mbms_r14_opts::options)(sib_index - 3);
+//          } else {
+//            fprintf(stderr, "Invalid SIB index %d for si_mapping_info=%d in sched_info=%d\n", sib_index, j, i);
+//            return SRSRAN_ERROR;
+//          }
+//        }
+//      } else {
+//        fprintf(stderr, "Number of si_mapping_info values exceeds maximum (%d)\n", ASN1_RRC_MAX_SIB);
+//        return SRSRAN_ERROR;
+//      }
+//    } else {
       data->sched_info_list_mbms_r14[i].sib_map_info_r14.resize(0);
-    }
+//    }
   }
   return 0;
 }
@@ -374,6 +374,7 @@ int mbsfn_area_info_list_parser::parse(Setting& root)
       return SRSRAN_ERROR;
     }
     mbsfn_item->subcarrier_spacing_mbms_r14_present = true;
+    mbsfn_item->ext = true;
   }
 
   return 0;
@@ -2136,10 +2137,10 @@ int parse_sibs(all_args_t* args_, rrc_cfg_t* rrc_cfg_, srsenb::phy_cfg_t* phy_co
     sib2->mbsfn_sf_cfg_list.resize(0);
   } else {
     // verify SIB13 is available
-    if (not sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type13_v920)) {
-      fprintf(stderr, "SIB13 not present in sched_info.\n");
-      return SRSRAN_ERROR;
-    }
+//    if (not sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type13_v920)) {
+//      fprintf(stderr, "SIB13 not present in sched_info.\n");
+//      return SRSRAN_ERROR;
+//    }
   }
 
   // Generate SIB3 if defined in mapping info
@@ -2170,11 +2171,15 @@ int parse_sibs(all_args_t* args_, rrc_cfg_t* rrc_cfg_, srsenb::phy_cfg_t* phy_co
     }
   }
 
-  if (sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type13_v920)) {
+ // if (sib_is_present(sib1->sched_info_list_mbms_r14, sib_type_e::sib_type13_v920)) {
     if (sib_sections::parse_sib13(args_->enb_files.sib_config, &sib1->sib_type13_r14) != SRSRAN_SUCCESS) {
       return SRSRAN_ERROR;
     }
-  }
+    if (sib_sections::parse_sib13(args_->enb_files.sib_config, sib13) != SRSRAN_SUCCESS) {
+      return SRSRAN_ERROR;
+    }
+    sib1->sib_type13_r14_present = true;
+//  }
 
   // Copy PHY common configuration
   phy_config_common->prach_cnfg  = sib2->rr_cfg_common.prach_cfg;

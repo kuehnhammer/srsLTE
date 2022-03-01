@@ -819,6 +819,7 @@ int mac::get_mch_sched(uint32_t tti, bool is_mcch, dl_sched_list_t& dl_sched_res
     mch.pdu[mch.num_mtch_sched].nbytes = current_mcch_length;
     dl_sched_res->pdsch[0].dci.rnti    = SRSRAN_MRNTI;
 
+
     // we use TTI % HARQ to make sure we use different buffers for consecutive TTIs to avoid races between PHY workers
     ue_db[SRSRAN_MRNTI]->metrics_tx(true, mcs.tbs);
     dl_sched_res->pdsch[0].data[0] =

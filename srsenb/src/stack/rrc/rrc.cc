@@ -805,7 +805,7 @@ void rrc::config_mac()
 uint32_t rrc::generate_sibs()
 {
   // nof_messages includes SIB2 by default, plus all configured SIBs
-  uint32_t           nof_messages = 1 + cfg.sib1.sched_info_list_mbms_r14.size();
+  uint32_t           nof_messages = 1;// + cfg.sib1.sched_info_list_mbms_r14.size();
   sched_info_list_mbms_r14_l& sched_info   = cfg.sib1.sched_info_list_mbms_r14;
 
   // Store configs,SIBs in common cell ctxt list
@@ -816,12 +816,13 @@ uint32_t rrc::generate_sibs()
     enb_cell_common* cell_ctxt = cell_common_list->get_cc_idx(cc_idx);
     // msg is array of SI messages, each SI message msg[i] may contain multiple SIBs
     // all SIBs in a SI message msg[i] share the same periodicity
-    asn1::dyn_array<bcch_dl_sch_msg_mbms_s> msg(nof_messages + 1);
+    asn1::dyn_array<bcch_dl_sch_msg_mbms_s> msg(1);
 
     // Copy SIB1 to first SI message
     msg[0].msg.set_c1().set_sib_type1_mbms_r14() = cell_ctxt->sib1;
 
     // Copy rest of SIBs
+    /*
     for (uint32_t sched_info_elem = 0; sched_info_elem < nof_messages - 1; sched_info_elem++) {
       uint32_t msg_index = sched_info_elem + 1; // first msg is SIB1, therefore start with second
 
@@ -841,6 +842,7 @@ uint32_t rrc::generate_sibs()
         sib_list.push_back(cfg.sibs[(int)mapping_enum + 2]);
       }
     }
+    */
 
     // Pack payload for all messages
     for (uint32_t msg_index = 0; msg_index < nof_messages; msg_index++) {
@@ -956,7 +958,7 @@ void rrc::configure_mbsfn_sibs()
   logger.debug("PMCH data MCS=%d", mbms_mcs);
   pmch_item->data_mcs         = mbms_mcs;
   pmch_item->mch_sched_period = srsran::pmch_info_t::mch_sched_period_t::rf64;
-  pmch_item->sf_alloc_end     = 64 * 6;
+  pmch_item->sf_alloc_end     = 38 * 4;
 
   // Configure PHY when PHY is done being initialized
   task_sched.defer_task([this, sibs2, sibs13, mcch_t]() mutable {

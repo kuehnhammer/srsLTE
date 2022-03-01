@@ -260,8 +260,6 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
   sfn = phy_tti / 10;
   sf  = phy_tti % 10;
 
-  if (sfn%4==0 && sf==0) return false;
-
   // Set some defaults
   cfg->mbsfn_area_id           = 0;
   cfg->non_mbsfn_region_length = 1;
@@ -271,9 +269,22 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
 
   // CAS subframe case.
   if (sfn % 4 == 0 && sf == 0){
-    printf("CAS SUBFRAME\n");
     return false;
   }
+
+  srsran::mbsfn_sf_cfg_t*    subfr_cnfg = &mbsfn.mbsfn_subfr_cnfg;
+  srsran::mbsfn_area_info_t* area_info  = &mbsfn.mbsfn_area_info;
+  switch (area_info->subcarrier_spacing) {
+    case srsran::mbsfn_area_info_t::subcarrier_spacing_t::khz_1dot25:
+      cfg->subcarrier_spacing = SRSRAN_SCS_1KHZ25; break;
+      cfg->non_mbsfn_region_length = 0;
+    case srsran::mbsfn_area_info_t::subcarrier_spacing_t::khz_7dot5:
+      cfg->subcarrier_spacing = SRSRAN_SCS_7KHZ5; break;
+      cfg->non_mbsfn_region_length = 0;
+    default:
+      cfg->subcarrier_spacing = SRSRAN_SCS_15KHZ; break;
+  }
+
   // Check for MCCH
   if (is_mcch_subframe(cfg, phy_tti)) {
     return true;
@@ -282,18 +293,7 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
     return false;
   }
 
-  // Not MCCH, check for MCH
-  srsran::mbsfn_sf_cfg_t*    subfr_cnfg = &mbsfn.mbsfn_subfr_cnfg;
-  srsran::mbsfn_area_info_t* area_info  = &mbsfn.mbsfn_area_info;
 
-  switch (area_info->subcarrier_spacing) {
-    case srsran::mbsfn_area_info_t::subcarrier_spacing_t::khz_1dot25:
-      cfg->subcarrier_spacing = SRSRAN_SCS_1KHZ25; break;
-    case srsran::mbsfn_area_info_t::subcarrier_spacing_t::khz_7dot5:
-      cfg->subcarrier_spacing = SRSRAN_SCS_7KHZ5; break;
-    default:
-      cfg->subcarrier_spacing = SRSRAN_SCS_1KHZ25; break;
-  }
 
   offset = subfr_cnfg->radioframe_alloc_offset;
   period = enum_to_number(subfr_cnfg->radioframe_alloc_period);
@@ -303,9 +303,9 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
     cfg->non_mbsfn_region_length = enum_to_number(area_info->non_mbsfn_region_len);
     if (mcch_configured) {
 
-      while (!have_mtch_stop) {
-        pthread_cond_wait(&mtch_cvar, &mtch_mutex);
-      }
+//      while (!have_mtch_stop) {
+//        pthread_cond_wait(&mtch_cvar, &mtch_mutex);
+//      }
       for (uint32_t i = 0; i < mbsfn.mcch.nof_pmch_info; i++) {
         unsigned fn_in_scheduling_period =  sfn % enum_to_number(mbsfn.mcch.pmch_info_list[i].mch_sched_period);
         int sf_idx = fn_in_scheduling_period * 10 + sf - (fn_in_scheduling_period / 4) - 1;
@@ -316,7 +316,7 @@ bool phy_common::is_mch_subframe(srsran_mbsfn_cfg_t* cfg, uint32_t phy_tti)
           } else {
             cfg->mbsfn_mcs = mbsfn.mcch.pmch_info_list[i].data_mcs;
           }
-          ERROR("SFN %d SF %d: MCS %d", sfn, sf, cfg->mbsfn_mcs);
+          DEBUG("SFN %d SF %d: MCS %d", sfn, sf, cfg->mbsfn_mcs);
           cfg->enable = true;
           cfg->non_mbsfn_region_length = 0;
           break;

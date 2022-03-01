@@ -250,6 +250,7 @@ void rlc::discard_sdu(uint16_t rnti, uint32_t lcid, uint32_t discard_sn)
 
 bool rlc::rb_is_um(uint16_t rnti, uint32_t lcid)
 {
+ return true;
   bool ret = false;
   pthread_rwlock_rdlock(&rwlock);
   if (users.count(rnti)) {
