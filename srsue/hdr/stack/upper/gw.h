@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2021 Software Radio Systems Limited
+ * Copyright 2013-2023 Software Radio Systems Limited
  *
  * This file is part of srsRAN.
  *
@@ -61,7 +61,7 @@ public:
 
   // PDCP interface
   void write_pdu(uint32_t lcid, srsran::unique_byte_buffer_t pdu);
-  void write_pdu_mch(uint32_t lcid, srsran::unique_byte_buffer_t pdu);
+  void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, srsran::unique_byte_buffer_t pdu);
 
   // NAS interface
   int  setup_if_addr(uint32_t eps_bearer_id, uint8_t pdn_type, uint32_t ip_addr, uint8_t* ipv6_if_addr, char* err_str);

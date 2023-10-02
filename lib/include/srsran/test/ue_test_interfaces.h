@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2021 Software Radio Systems Limited
+ * Copyright 2013-2023 Software Radio Systems Limited
  *
  * This file is part of srsRAN.
  *
@@ -67,7 +67,7 @@ public:
   void     write_pdu_bcch_bch(srsran::unique_byte_buffer_t payload) override {}
   void     write_pdu_bcch_dlsch(uint8_t* payload, uint32_t nof_bytes) override {}
   void     write_pdu_pcch(srsran::unique_byte_buffer_t payload) override {}
-  void     write_pdu_mch(uint32_t lcid, uint8_t* payload, uint32_t nof_bytes) override {}
+  void     write_pdu_mch(uint32_t mch_idx, uint32_t lcid, uint8_t* payload, uint32_t nof_bytes) override {}
 };
 
 class phy_dummy_interface : public phy_interface_rrc_lte
@@ -85,7 +85,7 @@ class phy_dummy_interface : public phy_interface_rrc_lte
   void meas_stop() override {}
 
   /* Cell search and selection procedures */
-  bool cell_search() override { return true; }
+  bool cell_search(int earfcn) override { return true; }
   bool cell_select(phy_cell_t cell) override { return true; }
   bool cell_is_camping() override { return false; }
 };

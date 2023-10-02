@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2021 Software Radio Systems Limited
+ * Copyright 2013-2023 Software Radio Systems Limited
  *
  * This file is part of srsRAN.
  *
@@ -44,7 +44,8 @@ namespace srsenb {
 
 rrc::rrc(srsran::task_sched_handle task_sched_, enb_bearer_manager& manager_) :
   logger(srslog::fetch_basic_logger("RRC")), bearer_manager(manager_), task_sched(task_sched_), rx_pdu_queue(128)
-{}
+{
+}
 
 rrc::~rrc() {}
 
@@ -643,7 +644,7 @@ void rrc::sgnb_release_ack(uint16_t eutra_rnti)
 
 void rrc::parse_ul_ccch(ue& ue, srsran::unique_byte_buffer_t pdu)
 {
-  srsran_assert(pdu != nullptr, "parse_ul_ccch called for empty message");
+  srsran_assert(pdu != nullptr, "handle_ul_ccch called for empty message");
 
   ul_ccch_msg_s  ul_ccch_msg;
   asn1::cbit_ref bref(pdu->msg, pdu->N_bytes);
@@ -676,7 +677,7 @@ void rrc::parse_ul_ccch(ue& ue, srsran::unique_byte_buffer_t pdu)
 ///< User mutex must be hold by caller
 void rrc::parse_ul_dcch(ue& ue, uint32_t lcid, srsran::unique_byte_buffer_t pdu)
 {
-  srsran_assert(pdu != nullptr, "parse_ul_dcch called for empty message");
+  srsran_assert(pdu != nullptr, "handle_ul_dcch called for empty message");
 
   ue.parse_ul_dcch(lcid, std::move(pdu));
 }
@@ -959,6 +960,7 @@ void rrc::configure_mbsfn_sibs()
   task_sched.defer_task([this, sibs2, sibs13, mcch_t]() mutable {
     phy->configure_mbsfn(&sibs2, &sibs13, mcch_t);
     mac->write_mcch(&sibs2, &sibs13, &mcch_t, mcch_payload_buffer, current_mcch_length);
+    add_user(SRSRAN_MRNTI, {});
   });
 }
 
@@ -1036,7 +1038,7 @@ void rrc::tti_clock()
       if (p.pdu != nullptr) {
         log_rx_pdu_fail(p.rnti, p.lcid, *p.pdu, "unknown rnti");
       } else {
-        logger.warning("Ignoring rnti=0x%x command. Cause: unknown rnti", p.rnti);
+        logger.warning("Ignoring rnti=0x%x command %d arg %d. Cause: unknown rnti", p.rnti, p.lcid, p.arg);
       }
       continue;
     }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2021 Software Radio Systems Limited
+ * Copyright 2013-2023 Software Radio Systems Limited
  *
  * This file is part of srsRAN.
  *
@@ -261,7 +261,7 @@ void demux::process_mch_pdu(srsran::mch_pdu* mch_msg)
       }
       Debug("Wrote MCH LCID=%d to RLC", lcid);
       if (1 == mch_lcids[lcid]) {
-        rlc->write_pdu_mch(lcid, mch_msg->get()->get_sdu_ptr(), mch_msg->get()->get_payload_size());
+        rlc->write_pdu_mch(0, lcid, mch_msg->get()->get_sdu_ptr(), mch_msg->get()->get_payload_size());
       }
     }
   }

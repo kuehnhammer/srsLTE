@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2021 Software Radio Systems Limited
+ * Copyright 2013-2023 Software Radio Systems Limited
  *
  * This file is part of srsRAN.
  *
@@ -46,6 +46,7 @@ public:
   const static int MAX_DATA_LIST       = 32;
   const static int MAX_RAR_LIST        = 8;
   const static int MAX_BC_LIST         = 8;
+  const static int MAX_PO_LIST         = 8;
   const static int MAX_RLC_PDU_LIST    = 8;
   const static int MAX_PHICH_LIST      = 8;
 
@@ -148,6 +149,7 @@ public:
   struct ue_cfg_t {
     struct cc_cfg_t {
       bool            active               = false;
+      bool            ul_disabled          = false;
       uint32_t        enb_cc_idx           = 0; ///< eNB CC index
       srsran_dl_cfg_t dl_cfg               = {};
       uint32_t        aperiodic_cqi_period = 0; // if 0 is periodic CQI
@@ -224,20 +226,31 @@ public:
 
   typedef struct {
     srsran_dci_dl_t dci;
-
     enum bc_type { BCCH, PCCH } type;
-
     uint32_t index;
-
     uint32_t tbs;
-
   } dl_sched_bc_t;
+
+  struct dl_sched_po_info_t {
+    uint32_t preamble_idx;
+    uint32_t prach_mask_idx;
+    uint16_t crnti;
+  };
+
+  typedef struct {
+    srsran_dci_dl_t dci;
+    uint32_t        tbs;
+    uint16_t        crnti;
+    uint32_t        preamble_idx;
+    uint32_t        prach_mask_idx;
+  } dl_sched_po_t;
 
   struct dl_sched_res_t {
     uint32_t                                               cfi;
     srsran::bounded_vector<dl_sched_data_t, MAX_DATA_LIST> data;
     srsran::bounded_vector<dl_sched_rar_t, MAX_RAR_LIST>   rar;
     srsran::bounded_vector<dl_sched_bc_t, MAX_BC_LIST>     bc;
+    srsran::bounded_vector<dl_sched_po_t, MAX_PO_LIST>     po;
   };
 
   typedef struct {
@@ -309,6 +322,9 @@ public:
   /* Run Scheduler for this tti */
   virtual int dl_sched(uint32_t tti, uint32_t enb_cc_idx, dl_sched_res_t& sched_result) = 0;
   virtual int ul_sched(uint32_t tti, uint32_t enb_cc_idx, ul_sched_res_t& sched_result) = 0;
+
+  /* PDCCH order */
+  virtual int set_pdcch_order(uint32_t enb_cc_idx, dl_sched_po_info_t pdcch_order_info) = 0;
 
   /* Custom */
   virtual void                                 set_dl_tti_mask(uint8_t* tti_mask, uint32_t nof_sfs)        = 0;

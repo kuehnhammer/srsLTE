@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2021 Software Radio Systems Limited
+ * Copyright 2013-2023 Software Radio Systems Limited
  *
  * This file is part of srsRAN.
  *
@@ -50,7 +50,7 @@ public:
   void write_pdu(uint16_t rnti, uint32_t lcid, srsran::unique_byte_buffer_t sdu) override;
   void notify_delivery(uint16_t rnti, uint32_t lcid, const srsran::pdcp_sn_vector_t& pdcp_sn) override;
   void notify_failure(uint16_t rnti, uint32_t lcid, const srsran::pdcp_sn_vector_t& pdcp_sn) override;
-  void write_pdu_mch(uint32_t lcid, srsran::unique_byte_buffer_t sdu) {}
+  void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, srsran::unique_byte_buffer_t sdu) {}
 
   // pdcp_interface_rrc
   void set_enabled(uint16_t rnti, uint32_t lcid, bool enabled) override;
@@ -96,7 +96,7 @@ private:
     srsenb::gtpu_interface_pdcp* gtpu;
     // gw_interface_pdcp
     void write_pdu(uint32_t lcid, srsran::unique_byte_buffer_t pdu);
-    void write_pdu_mch(uint32_t lcid, srsran::unique_byte_buffer_t sdu) {}
+    void write_pdu_mch(uint32_t mch_idx, uint32_t lcid, srsran::unique_byte_buffer_t sdu) {}
   };
 
   class user_interface_rrc : public srsue::rrc_interface_pdcp
