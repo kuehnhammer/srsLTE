@@ -57,7 +57,8 @@
 #include "srsran/config.h"
 
 #define SRSRAN_MAX_CANDIDATES_UE 16 // From 36.213 Table 9.1.1-1
-#define SRSRAN_MAX_CANDIDATES_COM 6 // From 36.213 Table 9.1.1-1
+#define SRSRAN_MAX_CANDIDATES_COM 7 // From 36.213 Table 9.1.1-1
+                                    // 6 + 1: In addition to applying the procedures described in this Subclause for determining PDCCH assignment for non-MBSFN subframes on a MBMS-dedicated cell to receive MBMS on that cell when configured by higher layers, the UE shall also monitor a common search space ( L ) k S at aggregation level L=16 with a single PDCCH candidate M(L) =1 and Yk set to 0.
 #define SRSRAN_MAX_CANDIDATES (SRSRAN_MAX_CANDIDATES_UE + SRSRAN_MAX_CANDIDATES_COM)
 
 #define SRSRAN_MAX_FORMATS 4
