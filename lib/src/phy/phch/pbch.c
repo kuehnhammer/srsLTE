@@ -336,9 +336,12 @@ void srsran_pbch_mib_mbms_unpack(uint8_t* msg, srsran_cell_t* cell, uint32_t* sf
     *sfn = srsran_bit_pack(&msg, 6) << 4;
   }
 
+  uint32_t non_mbsfn_sf = srsran_bit_pack(&msg, 2);
   if (additional_non_mbsfn_subframes) {
-    *additional_non_mbsfn_subframes = *msg++;
+    *additional_non_mbsfn_subframes = non_mbsfn_sf;
   }
+  
+  cell->semi_static_cfi = srsran_bit_pack(&msg, 2);
 }
 
 /**
