@@ -345,7 +345,7 @@ struct mbms_notif_cfg_t {
 struct mbsfn_area_info_t {
   uint8_t mbsfn_area_id = 0;
   enum class region_len_t { s1, s2, nulltype } non_mbsfn_region_len;
-  enum class subcarrier_spacing_t { khz_7dot5, khz_2dot5, khz_1dot25, khz_0dot25, nulltype } subcarrier_spacing;
+  enum class subcarrier_spacing_t { khz_7dot5, khz_2dot5, khz_1dot25, khz_0dot37, khz_15, nulltype } subcarrier_spacing;
   uint8_t pmch_bandwidth = 0;
   uint8_t notif_ind = 0;
   struct mcch_cfg_t {

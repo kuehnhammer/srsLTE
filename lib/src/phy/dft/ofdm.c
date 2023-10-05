@@ -90,6 +90,16 @@ static int ofdm_init_mbsfn_(srsran_ofdm_t* q, srsran_ofdm_cfg_t* cfg, srsran_dft
       q->nof_re            = cfg->nof_prb * SRSRAN_NRE_SCS_1KHZ25;
       q->non_mbsfn_region  = -1;
       break;
+    case SRSRAN_SCS_2KHZ5:
+      q->nof_symbols_mbsfn = SRSRAN_CP_SCS_2KHZ5_NSYMB;
+      q->nof_re            = cfg->nof_prb * SRSRAN_NRE_SCS_2KHZ5;
+      q->non_mbsfn_region  = -1;
+      break;
+    case SRSRAN_SCS_0KHZ37:
+      q->nof_symbols_mbsfn = SRSRAN_CP_SCS_0KHZ37_NSYMB;
+      q->nof_re            = cfg->nof_prb * SRSRAN_NRE_SCS_0KHZ37;
+      q->non_mbsfn_region  = -1;
+      break;
   }
 
   q->nof_guards        = (q->cfg.symbol_sz - q->nof_re) / 2U;

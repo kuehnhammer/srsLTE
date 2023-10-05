@@ -368,7 +368,7 @@ int srsran_symbol_sz_scs(uint32_t nof_prb, srsran_scs_t subcarrier_spacing)
   if (nof_prb <= 0) {
     return SRSRAN_ERROR;
   }
-  if (subcarrier_spacing == SRSRAN_SCS_1KHZ25) {
+  if (subcarrier_spacing == SRSRAN_SCS_0KHZ37) {
     if (nof_prb <= 6) {
       return 1536;
     } else if (nof_prb <= 15) {
@@ -381,6 +381,38 @@ int srsran_symbol_sz_scs(uint32_t nof_prb, srsran_scs_t subcarrier_spacing)
       return 18432;
     } else if (nof_prb <= 110) {
       return 24567;
+    } else {
+      return SRSRAN_ERROR;
+    }
+  } else if (subcarrier_spacing == SRSRAN_SCS_1KHZ25) {
+    if (nof_prb <= 6) {
+      return 1536;
+    } else if (nof_prb <= 15) {
+      return 3072;
+    } else if (nof_prb <= 25) {
+      return 6144;
+    } else if (nof_prb <= 50) {
+      return 12288;
+    } else if (nof_prb <= 75) {
+      return 18432;
+    } else if (nof_prb <= 110) {
+      return 24567;
+    } else {
+      return SRSRAN_ERROR;
+    }
+  } else if (subcarrier_spacing == SRSRAN_SCS_2KHZ5) {
+    if (nof_prb <= 6) {
+      return 768;
+    } else if (nof_prb <= 15) {
+      return 1536;
+    } else if (nof_prb <= 25) {
+      return 3072;
+    } else if (nof_prb <= 50) {
+      return 6144;
+    } else if (nof_prb <= 75) {
+      return 9216;
+    } else if (nof_prb <= 110) {
+      return 12288;
     } else {
       return SRSRAN_ERROR;
     }

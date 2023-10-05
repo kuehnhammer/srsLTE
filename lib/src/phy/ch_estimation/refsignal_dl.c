@@ -349,12 +349,26 @@ SRSRAN_API int srsran_refsignal_mbsfn_put_sf(srsran_cell_t cell,
 
 uint32_t srsran_refsignal_mbsfn_nof_symbols(srsran_scs_t scs)
 {
-  return scs == SRSRAN_SCS_1KHZ25 ? 1 : 3;
+  switch (scs) {
+    case SRSRAN_SCS_15KHZ:  return 3;
+    case SRSRAN_SCS_7KHZ5:  return 3;
+    case SRSRAN_SCS_2KHZ5: return 2;
+    case SRSRAN_SCS_1KHZ25: return 1;
+    case SRSRAN_SCS_0KHZ37: return 1;
+    default: return 0;
+  }
 }
 
 uint32_t srsran_refsignal_mbsfn_rs_per_symbol(srsran_scs_t scs)
 {
-  return scs == SRSRAN_SCS_1KHZ25 ? 24 : 6;
+  switch (scs) {
+    case SRSRAN_SCS_15KHZ:  return 6;
+    case SRSRAN_SCS_7KHZ5:  return 6;
+    case SRSRAN_SCS_2KHZ5: return 18;
+    case SRSRAN_SCS_1KHZ25: return 24;
+    case SRSRAN_SCS_0KHZ37: return 40; // [kku] add type 2
+    default: return 0;
+  }
 }
 
 uint32_t srsran_refsignal_mbsfn_rs_per_rb(srsran_scs_t scs)
@@ -367,7 +381,9 @@ uint32_t srsran_symbols_per_mbsfn_subframe(srsran_scs_t scs)
   switch (scs) {
     case SRSRAN_SCS_15KHZ:  return 6;
     case SRSRAN_SCS_7KHZ5:  return 3;
+    case SRSRAN_SCS_2KHZ5: return 1;
     case SRSRAN_SCS_1KHZ25: return 1;
+    case SRSRAN_SCS_0KHZ37: return 1;
     default: return 0;
   }
 }
@@ -395,6 +411,8 @@ inline uint32_t srsran_refsignal_mbsfn_fidx(uint32_t l, srsran_scs_t scs)
       }
       break;
     case SRSRAN_SCS_1KHZ25:
+    case SRSRAN_SCS_2KHZ5:
+    case SRSRAN_SCS_0KHZ37:
       ret = 0;
       break;
   }
@@ -417,11 +435,19 @@ inline uint32_t srsran_refsignal_mbsfn_offset(uint32_t l, uint32_t s, uint32_t s
         ret = 2;
       }
       break;
+    case SRSRAN_SCS_2KHZ5:
+      if (s == 1) {
+        ret = 2;
+      }
+      break;
     case SRSRAN_SCS_1KHZ25:
       if (sf%2 != 0) {
         ret = 3;
       }
       break;
+    case SRSRAN_SCS_0KHZ37:
+        ret = 0; // [kku]
+        break;
   }
   return ret;
 }
@@ -450,6 +476,8 @@ inline uint32_t srsran_refsignal_mbsfn_nsymbol(uint32_t l, srsran_scs_t scs)
       }
       break;
     case SRSRAN_SCS_1KHZ25:
+    case SRSRAN_SCS_2KHZ5:
+    case SRSRAN_SCS_0KHZ37:
       ret = 0;
       break;
   }

@@ -52,7 +52,7 @@ uint32_t ra_re_x_prb(const srsran_cell_t* cell, srsran_dl_sf_cfg_t* sf, uint32_t
     if (sf->subcarrier_spacing != SRSRAN_SCS_15KHZ) {
       re = SRSRAN_NRE_SCS(sf->subcarrier_spacing) * SRSRAN_MBSFN_NOF_SYMBOLS(sf->subcarrier_spacing);
       if (skip_refs) {
-        re -= srsran_refsignal_mbsfn_rs_per_symbol(sf->subcarrier_spacing) * (slot+1);
+        re -= srsran_refsignal_mbsfn_rs_per_symbol(sf->subcarrier_spacing) * (sf->subcarrier_spacing == SRSRAN_SCS_7KHZ5 ? slot+1 : 1);
       }
       return re;
     }

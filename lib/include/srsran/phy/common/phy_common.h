@@ -82,8 +82,7 @@ extern "C" {
 
 typedef enum { SRSRAN_CP_NORM = 0, SRSRAN_CP_EXT } srsran_cp_t;
 typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
-//typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_2KHZ5, SRSRAN_SCS_1KHZ25, SRSRAN_SCS_0KHZ37 } srsran_scs_t;
-typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_1KHZ25 } srsran_scs_t;
+typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_2KHZ5, SRSRAN_SCS_1KHZ25, SRSRAN_SCS_0KHZ37 } srsran_scs_t;
 
 #define SRSRAN_INVALID_RNTI 0x0 // TS 36.321 - Table 7.1-1 RNTI 0x0 isn't a valid DL RNTI
 #define SRSRAN_CRNTI_START 0x000B
@@ -109,8 +108,12 @@ typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_1KHZ25 } srsra
 #define SRSRAN_MAX_PRB 110
 #define SRSRAN_NRE 12
 #define SRSRAN_NRE_SCS_7KHZ5 24
+#define SRSRAN_NRE_SCS_2KHZ5 72
 #define SRSRAN_NRE_SCS_1KHZ25 144
-#define SRSRAN_NRE_SCS(scs) (scs == SRSRAN_SCS_15KHZ ? SRSRAN_NRE : (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_NRE_SCS_7KHZ5 : SRSRAN_NRE_SCS_1KHZ25))
+#define SRSRAN_NRE_SCS_0KHZ37 486
+#define SRSRAN_NRE_SCS(scs) (scs == SRSRAN_SCS_15KHZ ? SRSRAN_NRE : (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_NRE_SCS_7KHZ5 : \
+      (scs == SRSRAN_SCS_2KHZ5 ? SRSRAN_NRE_SCS_2KHZ5 : \
+      (scs == SRSRAN_SCS_1KHZ25 ? SRSRAN_NRE_SCS_1KHZ25 : SRSRAN_NRE_SCS_0KHZ37))))
 
 
 #define SRSRAN_SYMBOL_SZ_MAX 2048
@@ -127,10 +130,15 @@ typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_1KHZ25 } srsra
 
 #define SRSRAN_CP_SCS_7KHZ5_NSYMB  3
 #define SRSRAN_CP_SCS_1KHZ25_NSYMB 1
+#define SRSRAN_CP_SCS_2KHZ5_NSYMB 1
+#define SRSRAN_CP_SCS_0KHZ37_NSYMB 1
 #define SRSRAN_CP_MBSFN_LEN(scs) (scs == SRSRAN_SCS_1KHZ25 ? 6144 : (scs == SRSRAN_SCS_7KHZ5 ? 1024 : SRSRAN_CP_EXT_LEN))
 
-#define SRSRAN_MBSFN_NOF_SLOTS(scs) (scs == SRSRAN_SCS_1KHZ25 ? 1 : 2)
-#define SRSRAN_MBSFN_NOF_SYMBOLS(scs) (scs == SRSRAN_SCS_1KHZ25 ? SRSRAN_CP_SCS_1KHZ25_NSYMB : (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_CP_SCS_7KHZ5_NSYMB : SRSRAN_CP_EXT_NSYMB ))
+#define SRSRAN_MBSFN_NOF_SLOTS(scs) ((scs == SRSRAN_SCS_1KHZ25 || scs == SRSRAN_SCS_0KHZ37) ? 1 : 2)
+#define SRSRAN_MBSFN_NOF_SYMBOLS(scs) (scs == SRSRAN_SCS_1KHZ25 ? SRSRAN_CP_SCS_1KHZ25_NSYMB : \
+    (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_CP_SCS_7KHZ5_NSYMB : \
+    (scs == SRSRAN_SCS_2KHZ5 ? SRSRAN_CP_SCS_2KHZ5_NSYMB : \
+    (scs == SRSRAN_SCS_0KHZ37 ? SRSRAN_CP_SCS_0KHZ37_NSYMB : SRSRAN_CP_EXT_NSYMB ))))
 
 
 #define SRSRAN_CP_ISNORM(cp) (cp == SRSRAN_CP_NORM)
@@ -181,15 +189,15 @@ typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_1KHZ25 } srsra
 
 #define SRSRAN_SYMBOL_HAS_REF_MBSFN(l, s) ((l == 2 && s == 0) || (l == 0 && s == 1) || (l == 4 && s == 1))
 #define SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) ((l == 1 && s == 0) || (l == 0 && s == 1) || (l == 2 && s == 1))
+#define SRSRAN_SYMBOL_HAS_REF_MBSFN_2KHZ5(l, s) (true)
 #define SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s) (true)
+#define SRSRAN_SYMBOL_HAS_REF_MBSFN_0KHZ37(l, s) (true)
 #define SRSRAN_SYMBOL_HAS_REF_MBSFN_SCS(l, s, scs) (scs == SRSRAN_SCS_15KHZ ? SRSRAN_SYMBOL_HAS_REF_MBSFN(l, s) : \
-    (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) : SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s)))
+    (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) : \
+    (scs == SRSRAN_SCS_2KHZ5 ? SRSRAN_SYMBOL_HAS_REF_MBSFN_2KHZ5(l, s) : \
+    (scs == SRSRAN_SCS_1KHZ25 ? SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s) : SRSRAN_SYMBOL_HAS_REF_MBSFN_0KHZ37(l, s)))))
 
 #define SRSRAN_SYMBOL_REF_OFFSET_MBSFN(l, s) ((l == 2 && s == 0) || (l == 0 && s == 1) || (l == 4 && s == 1))
-#define SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) ((l == 1 && s == 0) || (l == 0 && s == 1) || (l == 2 && s == 1))
-#define SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s) (true)
-#define SRSRAN_SYMBOL_HAS_REF_MBSFN_SCS(l, s, scs) (scs == SRSRAN_SCS_15KHZ ? SRSRAN_SYMBOL_HAS_REF_MBSFN(l, s) : \
-    (scs == SRSRAN_SCS_7KHZ5 ? SRSRAN_SYMBOL_HAS_REF_MBSFN_7KHZ5(l, s) : SRSRAN_SYMBOL_HAS_REF_MBSFN_1KHZ25(l, s)))
 
 #define SRSRAN_NON_MBSFN_REGION_GUARD_LENGTH(non_mbsfn_region, symbol_sz)                                              \
   ((non_mbsfn_region == 1)                                                                                             \
