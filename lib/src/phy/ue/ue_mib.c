@@ -290,8 +290,7 @@ int srsran_ue_mib_sync_decode_prb(srsran_ue_mib_sync_t* q,
       return -1;
     }
 
-    if (srsran_ue_sync_get_sfn(&q->ue_sync)%4 == 0 && srsran_ue_sync_get_sfidx(&q->ue_sync) == 0) {
-   // if (srsran_ue_sync_get_sfidx(&q->ue_sync) == 0 ) { // [TODO] fix for mixed-mode
+   if (srsran_ue_sync_get_sfidx(&q->ue_sync) == 0 ) {
       if (ret == 1) {
         mib_ret = srsran_ue_mib_decode(&q->ue_mib, bch_payload, nof_tx_ports, sfn_offset);
       } else {

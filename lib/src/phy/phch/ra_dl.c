@@ -70,18 +70,27 @@ uint32_t ra_re_x_prb(const srsran_cell_t* cell, srsran_dl_sf_cfg_t* sf, uint32_t
   }
 
   /* if it's the prb in the middle, there are less RE due to PBCH and PSS/SSS */
+
+  /* when nof_prb > 6, the cell is MBMS dedicated and PBCH repetiton is configured,
+   * 3 REs will be used for repeated PBCH symbols. Subtract them as well. */
+  bool has_pbch_repetition = cell->mbms_dedicated && cell->nof_prb > 6 && cell->has_pbch_repetition_r16;
+
   if (cell->frame_type == SRSRAN_FDD) {
     if ((subframe == 0 || subframe == 5) &&
         (prb_idx >= cell->nof_prb / 2 - 3 && prb_idx < cell->nof_prb / 2 + 3 + (cell->nof_prb % 2))) {
       if (subframe == 0) {
         if (slot == 0) {
-          re = (nof_symbols - nof_ctrl_symbols - 2) * SRSRAN_NRE;
+          re = (nof_symbols - nof_ctrl_symbols - (has_pbch_repetition ? 3 : 2)) * SRSRAN_NRE;
+          if (has_pbch_repetition) {
+            skip_refs = false;
+          }
         } else {
           if (SRSRAN_CP_ISEXT(cp_)) {
-            re        = (nof_symbols - 4) * SRSRAN_NRE;
+            re        = (nof_symbols - (has_pbch_repetition ? 6 : 4)) * SRSRAN_NRE;
             skip_refs = false;
           } else {
             re = (nof_symbols - 4) * SRSRAN_NRE + 2 * cell->nof_ports;
+
           }
         }
       } else if (subframe == 5) {
@@ -91,9 +100,12 @@ uint32_t ra_re_x_prb(const srsran_cell_t* cell, srsran_dl_sf_cfg_t* sf, uint32_t
       }
       if ((cell->nof_prb % 2) && (prb_idx == cell->nof_prb / 2 - 3 || prb_idx == cell->nof_prb / 2 + 3)) {
         if (slot == 0) {
-          re += 2 * SRSRAN_NRE / 2;
+          re += (has_pbch_repetition ? 3 : 2) * SRSRAN_NRE / 2;
+          if (has_pbch_repetition) {
+            re -= cell->nof_ports > 2 ? 2 : cell->nof_ports;
+          }
         } else if (subframe == 0) {
-          re += 4 * SRSRAN_NRE / 2 - cell->nof_ports;
+          re += (has_pbch_repetition ? 6 : 4) * SRSRAN_NRE / 2 - cell->nof_ports;
           if (SRSRAN_CP_ISEXT(cp_)) {
             re -= cell->nof_ports > 2 ? 2 : cell->nof_ports;
           }

@@ -82,7 +82,8 @@ extern "C" {
 
 typedef enum { SRSRAN_CP_NORM = 0, SRSRAN_CP_EXT } srsran_cp_t;
 typedef enum { SRSRAN_SF_NORM = 0, SRSRAN_SF_MBSFN } srsran_sf_t;
-typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_1KHZ25  } srsran_scs_t;
+//typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_2KHZ5, SRSRAN_SCS_1KHZ25, SRSRAN_SCS_0KHZ37 } srsran_scs_t;
+typedef enum { SRSRAN_SCS_15KHZ = 0, SRSRAN_SCS_7KHZ5, SRSRAN_SCS_1KHZ25 } srsran_scs_t;
 
 #define SRSRAN_INVALID_RNTI 0x0 // TS 36.321 - Table 7.1-1 RNTI 0x0 isn't a valid DL RNTI
 #define SRSRAN_CRNTI_START 0x000B
@@ -272,6 +273,7 @@ typedef struct SRSRAN_API {
   uint8_t               additional_non_mbms_frames;
   uint8_t               mbsfn_prb;
   uint32_t              semi_static_cfi;
+  bool                  has_pbch_repetition_r16;
 } srsran_cell_t;
 
 // Common downlink properties that may change every subframe
