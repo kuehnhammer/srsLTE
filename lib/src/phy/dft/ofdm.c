@@ -572,6 +572,7 @@ static void ofdm_rx_slot_mbsfn(srsran_ofdm_t* q, cf_t* input, cf_t* output)
       input += SRSRAN_NON_MBSFN_REGION_GUARD_LENGTH(q->non_mbsfn_region, q->cfg.symbol_sz);
     }
     if (q->cfg.subcarrier_spacing != SRSRAN_SCS_15KHZ) {
+    //  input += SRSRAN_CP_LEN_MBSFN_SCS(q->cfg.symbol_sz, q->cfg.subcarrier_spacing);
       input += q->cfg.symbol_sz / 4U;
     } else {
       if (SRSRAN_CP_ISNORM(q->cfg.cp)) {

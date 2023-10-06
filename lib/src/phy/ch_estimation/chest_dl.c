@@ -492,6 +492,13 @@ static void interpolate_pilots(srsran_chest_dl_t*     q,
             &ce[srsran_refsignal_mbsfn_nsymbol(l, scs) * q->cell.nof_prb * SRSRAN_NRE_SCS(scs)],
             fidx_offset,
             l==1 ? 2 : 4 );
+      } else if (sf->subcarrier_spacing == SRSRAN_SCS_2KHZ5) {
+        fidx_offset = srsran_refsignal_mbsfn_fidx(l, sf->subcarrier_spacing);
+        srsran_interp_linear_offset(&q->srsran_interp_lin_mbsfn,
+            &pilot_estimates[srsran_refsignal_mbsfn_rs_per_symbol(scs) * q->cell.nof_prb * l],
+            &ce[srsran_refsignal_mbsfn_nsymbol(l, scs) * q->cell.nof_prb * SRSRAN_NRE_SCS(scs)],
+            fidx_offset,
+            l==1 ? 2 : 4 );
       } else  { // SRSRAN_SCS_1KHZ25
         fidx_offset = sf->tti%2==0 ? 0 : 3;
         srsran_interp_linear_offset(&q->srsran_interp_lin_mbsfn,
@@ -523,7 +530,8 @@ static void interpolate_pilots(srsran_chest_dl_t*     q,
                                       fidx_offset,
                                       SRSRAN_NRE / 2 - fidx_offset);
         } else {
-          fidx_offset = srsran_refsignal_cs_fidx(q->cell, l, port_id, 0);
+          fidx_offset =
+ srsran_refsignal_cs_fidx(q->cell, l, port_id, 0);
           srsran_interp_linear_offset(
               &q->srsran_interp_lin,
               &pilot_estimates[2 * q->cell.nof_prb * l],

@@ -410,8 +410,14 @@ inline uint32_t srsran_refsignal_mbsfn_fidx(uint32_t l, srsran_scs_t scs)
         ret = 0;
       }
       break;
-    case SRSRAN_SCS_1KHZ25:
     case SRSRAN_SCS_2KHZ5:
+      if (l == 0) {
+        ret = 0;
+      } else {
+        ret = 2;
+      }
+      break;
+    case SRSRAN_SCS_1KHZ25:
     case SRSRAN_SCS_0KHZ37:
       ret = 0;
       break;
@@ -475,8 +481,10 @@ inline uint32_t srsran_refsignal_mbsfn_nsymbol(uint32_t l, srsran_scs_t scs)
         ret = 5;
       }
       break;
-    case SRSRAN_SCS_1KHZ25:
     case SRSRAN_SCS_2KHZ5:
+      ret = l;
+      break;
+    case SRSRAN_SCS_1KHZ25:
     case SRSRAN_SCS_0KHZ37:
       ret = 0;
       break;
@@ -504,16 +512,33 @@ int srsran_refsignal_mbsfn_gen_seq(srsran_refsignal_t* q, srsran_cell_t cell, ui
       for (l = 0; l < nsymbols; l++) {
         uint32_t lp   = (srsran_refsignal_mbsfn_nsymbol(l, scs)) % srsran_symbols_per_mbsfn_subframe(scs);
         uint32_t slot = (l) ? (ns * 2 + 1) : (ns * 2);
+
+        if (scs == SRSRAN_SCS_1KHZ25) {
+          slot = ns;
+          lp = l;
+        } else if (scs == SRSRAN_SCS_2KHZ5) {
+          slot = ns;
+          lp = l;
+        }
+
         c_init        = 512 *
-          (7 * ( ( scs == SRSRAN_SCS_1KHZ25 ? ns : slot ) + 1) + ( scs == SRSRAN_SCS_1KHZ25 ? l : lp ) + 1) *
+          (7 * (slot + 1) + lp + 1) *
           (2 * N_mbsfn_id + 1) + N_mbsfn_id;
 
         srsran_sequence_set_LTE_pr(&seq_mbsfn, 10 * SRSRAN_REFSIGNAL_NUM_SF_MBSFN(SRSRAN_MAX_PRB, scs), c_init);
         for (i = 0; i < srsran_refsignal_mbsfn_rs_per_symbol(scs) * q->cell.nof_prb; i++) {
           uint32_t idx                   = SRSRAN_REFSIGNAL_PILOT_IDX_MBSFN(i, l, q->cell, scs);
-          mp                             = i + 3 * (SRSRAN_MAX_PRB - cell.nof_prb);
+          float delta = (SRSRAN_MAX_PRB - cell.nof_prb) / 2.0;
+          if (scs == SRSRAN_SCS_2KHZ5) {
+            mp                           = i + ((float)SRSRAN_NRE_SCS(scs) / 4.0) * delta;
+          } else {
+            mp                           = i + 3 * (SRSRAN_MAX_PRB - cell.nof_prb);
+          }
           __real__ q->pilots[p][ns][idx] = (1 - 2 * (float)seq_mbsfn.c[2 * mp + 0]) * M_SQRT1_2;
           __imag__ q->pilots[p][ns][idx] = (1 - 2 * (float)seq_mbsfn.c[2 * mp + 1]) * M_SQRT1_2;
+          //TRACE("p %d ns %d idx %d (l %d, i %d, mp %d): %f + %f i", p, ns, idx, l, i, mp,
+          //    creal(q->pilots[p][ns][idx]),
+          //    cimag(q->pilots[p][ns][idx]));
         }
       }
     }
@@ -609,6 +634,9 @@ int srsran_refsignal_mbsfn_get_sf(srsran_cell_t cell, uint32_t port_id, cf_t* sf
       for (i = 0; i < srsran_refsignal_mbsfn_rs_per_symbol(scs) * cell.nof_prb; i++) {
         pilots[SRSRAN_REFSIGNAL_PILOT_IDX_MBSFN(i, l, cell, scs) + nonmbsfn_offset] =
           sf_symbols[SRSRAN_RE_IDX_MBSFN(cell.nof_prb, nsymbol, fidx, scs)];
+      //ERROR("Reading RS %d from sf %d %d,%d: %f + %f i", i, sf_idx, nsymbol, fidx, 
+      //    creal(sf_symbols[SRSRAN_RE_IDX_MBSFN(cell.nof_prb, nsymbol, fidx, scs)]),
+      //    cimag(sf_symbols[SRSRAN_RE_IDX_MBSFN(cell.nof_prb, nsymbol, fidx, scs)]));
         fidx += SRSRAN_NRE_SCS(scs) / srsran_refsignal_mbsfn_rs_per_symbol(scs);
       }
     }
