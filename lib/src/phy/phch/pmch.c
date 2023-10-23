@@ -301,6 +301,9 @@ int srsran_pmch_decode(srsran_pmch_t*         q,
          sf->cfi);
 
     uint32_t lstart = SRSRAN_NOF_CTRL_SYMBOLS(q->cell, sf->cfi);
+    if (q->cell.mbms_dedicated) {
+      lstart = 0;
+    }
     for (int j = 0; j < q->nof_rx_antennas; j++) {
       /* extract symbols */
       n = pmch_get(q, sf_symbols[j], q->symbols[j], lstart, sf->subcarrier_spacing, sf->tti % 10);

@@ -142,7 +142,7 @@ uint32_t ra_re_x_prb(const srsran_cell_t* cell, srsran_dl_sf_cfg_t* sf, uint32_t
   }
 
   // remove references
-  if (skip_refs) {
+  if (skip_refs && re > 0) {
     if (sf->sf_type == SRSRAN_SF_NORM) {
       switch (cell->nof_ports) {
         case 1:
